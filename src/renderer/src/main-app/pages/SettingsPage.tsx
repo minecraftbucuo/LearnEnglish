@@ -81,8 +81,8 @@ export function SettingsPage(): React.JSX.Element {
           )}
         </div>
 
-        {/* 自适应瀑布流：宽窗口双栏均衡填充，窄窗口单列 */}
-        <div className="mx-auto max-w-6xl md:columns-2 md:gap-4">
+        {/* 单列居中，标准设置页布局 */}
+        <div className="mx-auto max-w-3xl space-y-4">
         {/* AI 供应商 */}
         <Section
           title="AI 供应商"
@@ -193,7 +193,7 @@ function Section({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className="mb-4 break-inside-avoid rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/30">
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/30">
       <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>
       {desc && <p className="mb-3 mt-1 text-xs leading-5 text-zinc-500">{desc}</p>}
       <div className={desc ? '' : 'mt-3'}>{children}</div>
