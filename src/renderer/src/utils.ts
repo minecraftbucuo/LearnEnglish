@@ -1,6 +1,11 @@
 import type { ReviewState, StructuredData } from '@shared/types'
 import { schedule } from '@shared/srs'
 
+/** 文本是否为中文（决定查词方向与朗读可用性） */
+export function isZhText(text: string): boolean {
+  return /[\u4e00-\u9fff]/.test(text)
+}
+
 /** 系统英文朗读 */
 export function speak(text: string, rate = 1): void {
   if (!('speechSynthesis' in window) || !text.trim()) return

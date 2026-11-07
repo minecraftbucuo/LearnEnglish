@@ -146,6 +146,8 @@ export function SettingsPage(): React.JSX.Element {
               [
                 ['word', '单词讲解'],
                 ['sentence', '句子讲解'],
+                ['zhWord', '中文查词（中→英）'],
+                ['zhSentence', '中文翻译（中→英）'],
                 ['image', '截图讲解']
               ] as const
             ).map(([key, label]) => (

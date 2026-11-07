@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReviewCard } from '@shared/types'
-import { intervalPreview, speak } from '../../utils'
+import { intervalPreview, isZhText, speak } from '../../utils'
 import { EntryImage } from '../components/EntryImage'
 
 type Phase = 'idle' | 'session' | 'done'
@@ -135,6 +135,7 @@ function ReviewSession({
 
   const entry = card.entry
   const s = entry.structured
+  const isZh = isZhText(entry.text)
   const answerText = s?.definitionZh || s?.translation || ''
 
   useEffect(() => {
@@ -193,7 +194,10 @@ function ReviewSession({
         {card.isNew && (
           <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-300">新卡</span>
         )}
-        {entry.type === 'word' && (
+        {isZh && (
+          <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-300">中→英</span>
+        )}
+        {entry.type === 'word' && !isZh && (
           <button
             onClick={() => setSpellingMode((v) => !v)}
             className={`shrink-0 rounded border px-2 py-0.5 text-[11px] transition ${
@@ -274,18 +278,34 @@ function ReviewSession({
         {flipped && (
           <div className="min-h-0 flex-1 overflow-y-auto border-t border-zinc-800 px-6 py-4">
             <div className="mb-3 flex justify-center gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  speak(entry.text)
-                }}
-                className="rounded-md bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
-              >
-                🔊 朗读
-              </button>
+              {!isZh && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    speak(entry.text)
+                  }}
+                  className="rounded-md bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
+                >
+                  🔊 朗读
+                </button>
+              )}
             </div>
             {s ? (
               <div className="space-y-3">
+                {s.equivalents && s.equivalents.length > 0 && (
+                  <div className="space-y-2">
+                    {s.equivalents.slice(0, 4).map((eq, i) => (
+                      <div key={i} className="text-center">
+                        <div>
+                          <span className="text-[15px] font-semibold text-teal-300">{eq.en}</span>
+                          {eq.phonetic && <span className="ml-2 text-xs text-zinc-500">{eq.phonetic}</span>}
+                          {eq.pos && <span className="ml-1.5 text-xs text-teal-500">{eq.pos}</span>}
+                        </div>
+                        {eq.note && <div className="text-xs text-zinc-400">{eq.note}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {(s.phonetic || s.pos || s.definitionZh) && (
                   <div className="text-center">
                     {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}

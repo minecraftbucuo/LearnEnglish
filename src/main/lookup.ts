@@ -15,7 +15,14 @@ import { getActiveProvider, getSettings } from './settings'
 import { captureSelectedText } from './capture'
 import { captureRegionByHwnd } from './screenshot'
 import { streamChat, type ChatMessage } from './ai'
-import { buildLookupMessages, extractAiData, isSingleWord, type LookupKind } from './prompts'
+import {
+  buildLookupMessages,
+  extractAiData,
+  isChinese,
+  isSingleWord,
+  isZhShort,
+  type LookupKind
+} from './prompts'
 import { findEntryByText, getEntryById, saveStructured, setStarred, upsertLookup } from './db'
 import {
   getOverlayWindow,
@@ -132,8 +139,13 @@ function startLookup(p: {
   const settings = getSettings()
   const noProvider = !settings.providers.length || !settings.activeProviderId
 
-  const kind: LookupKind =
-    p.source === 'image' ? 'image' : isSingleWord(p.text) ? 'word' : 'sentence'
+  const kind: LookupKind = p.source === 'image'
+    ? 'image'
+    : isChinese(p.text)
+      ? (isZhShort(p.text) ? 'zh_word' : 'zh_sentence')
+      : isSingleWord(p.text)
+        ? 'word'
+        : 'sentence'
 
   const existing = p.text ? findEntryByText(p.text) : null
   const session: LookupSession = {
@@ -249,7 +261,7 @@ function finishStream(session: LookupSession, full: string): void {
     const type: EntryType =
       structured.type === 'word' || structured.type === 'sentence'
         ? structured.type
-        : session.kind === 'word'
+        : session.kind === 'word' || session.kind === 'zh_word'
           ? 'word'
           : 'sentence'
     finalEntry = finalEntry ?? upsertLookup({
@@ -265,7 +277,7 @@ function finishStream(session: LookupSession, full: string): void {
   } else if (!finalEntry && session.text) {
     finalEntry = upsertLookup({
       text: session.text,
-      type: session.kind === 'word' ? 'word' : 'sentence',
+      type: session.kind === 'word' || session.kind === 'zh_word' ? 'word' : 'sentence',
       source: session.source,
       imagePath: session.imagePath
     })
@@ -310,7 +322,7 @@ export function starCurrent(
   if (!entry) {
     entry = upsertLookup({
       text,
-      type: session.kind === 'sentence' ? 'sentence' : 'word',
+      type: session.kind === 'sentence' || session.kind === 'zh_sentence' ? 'sentence' : 'word',
       source: session.source,
       imagePath: session.imagePath
     })
@@ -329,8 +341,23 @@ function sanitizeStructured(data: Record<string, unknown> | null): StructuredDat
   if (!data || typeof data !== 'object') return null
   const s: StructuredData = {}
   if (typeof data.type === 'string') s.type = data.type as EntryType
+  if (data.lang === 'zh' || data.lang === 'en') s.lang = data.lang
   for (const k of ['phonetic', 'pos', 'definitionZh', 'definitionEn', 'translation', 'grammar', 'sourceText'] as const) {
     if (typeof data[k] === 'string') s[k] = data[k] as string
+  }
+  if (Array.isArray(data.equivalents)) {
+    s.equivalents = (data.equivalents as unknown[])
+      .filter(
+        (e): e is { en: string; phonetic?: string; pos?: string; note?: string } =>
+          !!e && typeof e === 'object' && typeof (e as { en?: unknown }).en === 'string'
+      )
+      .map((e) => ({
+        en: String(e.en),
+        phonetic: typeof e.phonetic === 'string' ? e.phonetic : undefined,
+        pos: typeof e.pos === 'string' ? e.pos : undefined,
+        note: typeof e.note === 'string' ? e.note : undefined
+      }))
+      .slice(0, 5)
   }
   if (Array.isArray(data.examples)) {
     s.examples = (data.examples as unknown[])

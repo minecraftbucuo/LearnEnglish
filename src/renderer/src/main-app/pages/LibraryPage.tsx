@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { EntriesFilter, Entry, EntrySource, EntryType } from '@shared/types'
-import { fmtDateTime, speak } from '../../utils'
+import { fmtDateTime, isZhText, speak } from '../../utils'
 import { EntryImage } from '../components/EntryImage'
 
 type TypeFilter = EntryType | 'all'
@@ -153,6 +153,7 @@ function EntryDetail({
   }
 
   const s = entry.structured
+  const isZh = isZhText(entry.text)
   return (
     <aside className="flex w-[400px] shrink-0 flex-col border-l border-zinc-800 bg-zinc-900">
       <div className="flex items-center gap-1 border-b border-zinc-800 px-3 py-2.5">
@@ -163,7 +164,7 @@ function EntryDetail({
         >
           {entry.isStarred ? '⭐ 已划重点' : '☆ 划入重点'}
         </MiniAction>
-        <MiniAction onClick={() => speak(entry.text)}>🔊 朗读</MiniAction>
+        {!isZh && <MiniAction onClick={() => speak(entry.text)}>🔊 朗读</MiniAction>}
         <div className="flex-1" />
         <MiniAction onClick={() => void toggleSuspend()} title="暂停后不进入复习队列">
           {entry.suspended ? '▶️ 恢复复习' : '⏸ 暂停'}
@@ -200,6 +201,24 @@ function EntryDetail({
         )}
 
         {entry.source === 'image' && <EntryImage entryId={entry.id} />}
+
+        {s?.equivalents && s.equivalents.length > 0 && (
+          <div>
+            <SectionTitle>英语表达</SectionTitle>
+            <div className="space-y-2.5">
+              {s.equivalents.map((eq, i) => (
+                <div key={i}>
+                  <div className="text-[14px]">
+                    <span className="font-semibold text-teal-300">{eq.en}</span>
+                    {eq.phonetic && <span className="ml-2 text-xs text-zinc-500">{eq.phonetic}</span>}
+                    {eq.pos && <span className="ml-1.5 text-xs text-teal-500">{eq.pos}</span>}
+                  </div>
+                  {eq.note && <div className="text-xs leading-5 text-zinc-400">{eq.note}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {s && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-800/40 px-3.5 py-3">

@@ -7,11 +7,13 @@ export type ReviewMode = 'recall' | 'spelling'
 
 export interface StructuredData {
   type?: EntryType
+  lang?: 'en' | 'zh' // zh = 中文查词（讲解的是英语对应表达）
   phonetic?: string
   pos?: string
   definitionZh?: string
   definitionEn?: string
   translation?: string
+  equivalents?: { en: string; phonetic?: string; pos?: string; note?: string }[] // 中→英对应表达
   examples?: { en: string; zh: string }[]
   keyPoints?: { term: string; explanation: string }[]
   grammar?: string
@@ -98,6 +100,8 @@ export interface HotkeyConfig {
 export interface PromptOverrides {
   word?: string
   sentence?: string
+  zhWord?: string
+  zhSentence?: string
   image?: string
 }
 

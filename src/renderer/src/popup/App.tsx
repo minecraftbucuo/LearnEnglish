@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { AiDonePayload, LookupStartPayload } from '@shared/types'
 import type { AiChunkPayload, AiErrorPayload } from '@shared/api'
 import { Md } from '../components/Md'
-import { speak } from '../utils'
+import { isZhText, speak } from '../utils'
 
 interface Bubble {
   role: 'user' | 'assistant'
@@ -126,12 +126,15 @@ export default function App(): React.JSX.Element {
       : session.text
     : '查词'
 
+  const isZh = !!session && session.source !== 'image' && isZhText(session.text)
   const badge =
     session?.source === 'image'
       ? '图片'
-      : (session?.text.trim().split(/\s+/).length ?? 1) > 1
-        ? '句子'
-        : '单词'
+      : isZh
+        ? '中→英'
+        : (session?.text.trim().split(/\s+/).length ?? 1) > 1
+          ? '句子'
+          : '单词'
 
   return (
     <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
@@ -142,7 +145,7 @@ export default function App(): React.JSX.Element {
           <div className="flex items-center gap-2">
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                session?.source === 'image'
+                session?.source === 'image' || badge === '中→英'
                   ? 'bg-violet-500/15 text-violet-300'
                   : badge === '单词'
                     ? 'bg-teal-500/15 text-teal-300'
@@ -157,7 +160,7 @@ export default function App(): React.JSX.Element {
           </div>
         </div>
         <div className="app-no-drag flex items-center gap-0.5">
-          {session?.source !== 'image' && (
+          {session?.source !== 'image' && !isZh && (
             <IconBtn title="朗读" onClick={() => session && speak(session.text)}>
               🔊
             </IconBtn>

@@ -49,16 +49,63 @@ ${AI_DATA_RULE}
 句子的 JSON 示例：
 <!--AI_DATA {"type":"sentence","translation":"...","keyPoints":[{"term":"...","explanation":"..."}],"grammar":"..."}-->`
 
-const IMAGE_PROMPT = `这是一张包含英文文本的屏幕截图。请：
-1. 先逐字转录图中全部英文内容（保持原文大小写与标点）。
-2. 判断内容是一个单词/短语，还是句子/段落。
-3. 按对应的模板结构讲解（单词用词模板、句子用句模板）。
+const ZH_WORD_PROMPT = `你是一位耐心、专业的英语老师，面向中国学生。用户会给你一个中文词语、短语或成语，请给出地道的英语对应表达。
+
+严格按照以下 Markdown 结构输出：
+
+## 英语表达
+1. **meticulous** /məˈtɪkjələs/（adj.）
+   最常用，强调对细节的极度关注（适用语境/语气说明，1 句）
+2. **conscientious** /ˌkɒnʃiˈenʃəs/（adj.）
+   偏正式，强调出于责任心的认真
+
+给出 2-3 个最实用的表达，按常用程度排序，每个都标音标和词性，并一句话说明差别或适用语境。
+
+## 例句
+1. 用第 1 个表达造句，目标表达用 **粗体**。
+   对应中文翻译。
+2. （可选，换个表达或语境）
+
+## 辨析
+- 一句话点出这几个表达的核心差别（若无必要可整节省略）
 
 ${AI_DATA_RULE}
-JSON 中额外加 "sourceText" 字段存放你转录的原文，type 按你判断的填写：
-<!--AI_DATA {"type":"word","sourceText":"...","phonetic":"...","pos":"...","definitionZh":"...","examples":[...]}-->`
+中文查词的 JSON 示例：
+<!--AI_DATA {"type":"word","lang":"zh","equivalents":[{"en":"meticulous","phonetic":"/məˈtɪkjələs/","pos":"adj.","note":"最常用，强调对细节极度关注"},{"en":"conscientious","phonetic":"/ˌkɒnʃiˈenʃəs/","pos":"adj.","note":"偏正式"}],"examples":[{"en":"She is meticulous about her work.","zh":"她对工作一丝不苟。"}]}-->`
 
-export type LookupKind = 'word' | 'sentence' | 'image'
+const ZH_SENTENCE_PROMPT = `你是一位耐心、专业的英语老师，面向中国学生。用户会给你一个中文句子或段落，请翻译成地道的英语并讲解关键表达。
+
+严格按照以下 Markdown 结构输出：
+
+## 英文翻译
+1. **This measure has a significant impact on the outcome.**（推荐，书面/通用）
+2. This really affects how things turn out.（更口语）
+
+给出 1-2 个版本并标注语体；只有一个自然版本时可以只给一个。
+
+## 词汇表达
+- **显著影响** → **significant impact**：比 big effect 更书面，常用搭配 have a significant impact on
+
+挑选 3-5 个值得学的中文→英文对应表达；若整句都很简单，可以少讲，但不能为空。
+
+## 要点
+句式、搭配或文化差异上的注意点（1-2 句；没有就简述句子结构）。
+
+${AI_DATA_RULE}
+中文句子的 JSON 示例：
+<!--AI_DATA {"type":"sentence","lang":"zh","translation":"This measure has a significant impact on the outcome.","keyPoints":[{"term":"显著影响","explanation":"significant impact；比 big effect 更书面"}]}-->`
+
+const IMAGE_PROMPT = `这是一张屏幕截图，图中包含文本。请：
+1. 先逐字转录图中全部文本（保持原文大小写与标点）。
+2. 判断内容语言与形态：英文单词/短语 → 按单词模板讲解；英文句子/段落 → 按句子模板讲解；中文词语 → 按中文查词模板给出英语表达；中文句子 → 按中文句子模板翻译讲解。
+
+${AI_DATA_RULE}
+英文内容的 JSON 示例：
+<!--AI_DATA {"type":"word","sourceText":"...","phonetic":"...","pos":"...","definitionZh":"...","examples":[...]}-->
+中文内容的 JSON 示例（加 lang 与 equivalents，翻译类把 translation 填英文）：
+<!--AI_DATA {"type":"sentence","lang":"zh","sourceText":"...","translation":"...","keyPoints":[...]}-->`
+
+export type LookupKind = 'word' | 'sentence' | 'zh_word' | 'zh_sentence' | 'image'
 
 export function buildLookupMessages(
   kind: LookupKind,
@@ -71,14 +118,18 @@ export function buildLookupMessages(
       ? (overrides?.word?.trim() || WORD_PROMPT)
       : kind === 'sentence'
         ? (overrides?.sentence?.trim() || SENTENCE_PROMPT)
-        : (overrides?.image?.trim() || IMAGE_PROMPT)
+        : kind === 'zh_word'
+          ? (overrides?.zhWord?.trim() || ZH_WORD_PROMPT)
+          : kind === 'zh_sentence'
+            ? (overrides?.zhSentence?.trim() || ZH_SENTENCE_PROMPT)
+            : (overrides?.image?.trim() || IMAGE_PROMPT)
 
   const sys: ChatMessage = { role: 'system', content: systemPrompt }
 
   if (kind === 'image' && imageDataUrl) {
     const parts: ChatContentPart[] = [
       { type: 'image_url', image_url: { url: imageDataUrl } },
-      { type: 'text', text: '请讲解这张图片中的英文内容。' }
+      { type: 'text', text: '请按系统指令讲解这张图片中的文本内容。' }
     ]
     return [sys, { role: 'user', content: parts }]
   }
@@ -109,4 +160,15 @@ export function isSingleWord(text: string): boolean {
   if (t.length > 32) return false
   return !/\s/.test(t) || /^[A-Za-z'-]+ [A-Za-z'-]+$/.test(t)
   // "give up" 这类两词短语按单词（短语）讲解
+}
+
+/** 是否中文内容 */
+export function isChinese(text: string): boolean {
+  return /[\u4e00-\u9fff]/.test(text)
+}
+
+/** 中文查词：短且无句读 → 词语/成语，否则按句子翻译 */
+export function isZhShort(text: string): boolean {
+  const t = text.trim()
+  return t.length <= 12 && !/[。！？；，、,.!?;]/.test(t)
 }
