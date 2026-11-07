@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReviewCard } from '@shared/types'
+import type { ReviewCard, ReviewStats } from '@shared/types'
 import { intervalPreview, isZhText, speak } from '../../utils'
 import { EntryImage } from '../components/EntryImage'
 import { EmText } from '../../components/EmText'
@@ -14,12 +14,14 @@ export function ReviewPage(): React.JSX.Element {
   const [loading, setLoading] = useState(true)
   const [dueCount, setDueCount] = useState(0)
   const [newRemaining, setNewRemaining] = useState(0)
+  const [stats, setStats] = useState<ReviewStats | null>(null)
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
     const q = await window.api.reviewQueue()
     setDueCount(q.dueCount)
     setNewRemaining(q.newRemaining)
+    setStats(await window.api.reviewStats())
     setLoading(false)
   }, [])
 
@@ -76,7 +78,11 @@ export function ReviewPage(): React.JSX.Element {
           </div>
           <div className="w-36 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30">
             <div className="text-3xl font-bold text-sky-400">{newRemaining}</div>
-            <div className="mt-1 text-xs text-zinc-500">今日新卡</div>
+            <div className="mt-1 text-xs text-zinc-500">可学新卡（剩余）</div>
+          </div>
+          <div className="w-36 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30">
+            <div className="text-3xl font-bold text-zinc-200">{stats?.newToday ?? 0}</div>
+            <div className="mt-1 text-xs text-zinc-500">今日已学新卡</div>
           </div>
         </div>
         <button
@@ -87,8 +93,16 @@ export function ReviewPage(): React.JSX.Element {
           {finished ? '再来一轮' : '开始复习'}
         </button>
         {dueCount + newRemaining === 0 && (
-          <div className="text-xs text-zinc-600">
-            今日任务已完成 ✅ 划重点的新词会在明天出现在这里
+          <div className="max-w-md text-center text-xs leading-6 text-zinc-500">
+            {(stats?.newToday ?? 0) > 0 || (stats?.reviewedToday ?? 0) > 0 ? (
+              <>
+                今日任务已完成 ✅ 共复习 {stats?.reviewedToday ?? 0} 张。
+                点了「忘记」的卡 <b className="text-zinc-300">10 分钟后</b>会自动重现；
+                答对的卡从明天起按间隔出现。
+              </>
+            ) : (
+              <>划重点的新词会在明天出现在这里。去查几个词并按 ⭐ 划入重点，就能开始积累卡片。</>
+            )}
           </div>
         )}
       </div>
