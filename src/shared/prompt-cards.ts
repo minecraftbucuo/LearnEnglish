@@ -30,8 +30,14 @@ export const DEFAULT_PROMPT_CARDS: Record<PromptKindKey, PromptCard[]> = {
     },
     {
       id: 'phonetic',
-      title: '音标与释义',
-      content: '给出美式音标；标明词性并给简明中文释义（多个常用词性可并列）。',
+      title: '音标',
+      content: '给出美式音标。',
+      enabled: true
+    },
+    {
+      id: 'definition',
+      title: '释义',
+      content: '标明词性并给简明中文释义（多个常用词性可并列）。',
       enabled: true
     },
     {
