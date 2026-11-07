@@ -1,8 +1,12 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { BrowserWindow, screen, app } from 'electron'
+import Store from 'electron-store'
 import { CH } from '@shared/channels'
 import { getSettings } from './settings'
+
+// UI 偏好（弹窗尺寸等），独立于应用设置存储
+const uiPrefs = new Store<Record<string, number>>({ name: 'ui-prefs' })
 
 let mainWindow: BrowserWindow | null = null
 let popupWindow: BrowserWindow | null = null
@@ -79,11 +83,13 @@ export function showMainWindow(tab?: string): void {
 
 export function createPopupWindow(): BrowserWindow {
   popupWindow = new BrowserWindow({
-    width: 480,
-    height: 620,
+    width: Number(uiPrefs.get('popupW')) || 480,
+    height: Number(uiPrefs.get('popupH')) || 620,
+    minWidth: 360,
+    minHeight: 420,
     show: false,
     frame: false,
-    resizable: false,
+    resizable: true, // 无边框窗口支持边缘拉伸
     maximizable: false,
     fullscreenable: false,
     skipTaskbar: true,
@@ -92,6 +98,17 @@ export function createPopupWindow(): BrowserWindow {
     webPreferences: webPrefs
   })
   popupWindow.setAlwaysOnTop(true, 'screen-saver')
+  // 尺寸记忆：防抖保存，重启后沿用
+  let resizeTimer: NodeJS.Timeout | null = null
+  popupWindow.on('resize', () => {
+    if (resizeTimer) clearTimeout(resizeTimer)
+    resizeTimer = setTimeout(() => {
+      if (!popupWindow || popupWindow.isDestroyed()) return
+      const [w, h] = popupWindow.getSize()
+      uiPrefs.set('popupW', w)
+      uiPrefs.set('popupH', h)
+    }, 500)
+  })
   popupWindow.on('blur', () => {
     if (getSettings().hideOnBlur) hidePopup()
   })

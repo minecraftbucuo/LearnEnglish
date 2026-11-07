@@ -11,6 +11,35 @@ type SourceFilter = EntrySource | 'all'
 export function LibraryPage(): React.JSX.Element {
   const [entries, setEntries] = useState<Entry[]>([])
   const [selected, setSelected] = useState<Entry | null>(null)
+  const [detailWidth, setDetailWidth] = useState<number>(() => {
+    const v = Number(localStorage.getItem('le_detail_width'))
+    return v >= 300 && v <= 760 ? v : 400
+  })
+  const draggingRef = useRef(false)
+  const widthRef = useRef(detailWidth)
+
+  // 详情面板宽度拖拽（带记忆）
+  useEffect(() => {
+    const onMove = (e: MouseEvent): void => {
+      if (!draggingRef.current) return
+      const max = Math.min(760, window.innerWidth - 340)
+      const w = Math.min(Math.max(window.innerWidth - e.clientX, 300), max)
+      widthRef.current = w
+      setDetailWidth(w)
+    }
+    const onUp = (): void => {
+      if (!draggingRef.current) return
+      draggingRef.current = false
+      document.body.style.cursor = ''
+      localStorage.setItem('le_detail_width', String(widthRef.current))
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
   const [query, setQuery] = useState('')
   const [type, setType] = useState<TypeFilter>('all')
   const [source, setSource] = useState<SourceFilter>('all')
@@ -113,9 +142,24 @@ export function LibraryPage(): React.JSX.Element {
         </div>
       </div>
 
-      {/* 详情区 */}
+      {/* 拖拽分隔条 + 详情区 */}
       {selected && (
-        <EntryDetail entry={selected} onChanged={refreshSelected} onClose={() => setSelected(null)} />
+        <div
+          className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-teal-500/40"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            draggingRef.current = true
+            document.body.style.cursor = 'col-resize'
+          }}
+        />
+      )}
+      {selected && (
+        <EntryDetail
+          entry={selected}
+          width={detailWidth}
+          onChanged={refreshSelected}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   )
@@ -123,10 +167,12 @@ export function LibraryPage(): React.JSX.Element {
 
 function EntryDetail({
   entry,
+  width,
   onChanged,
   onClose
 }: {
   entry: Entry
+  width: number
   onChanged: () => Promise<void> | void
   onClose: () => void
 }): React.JSX.Element {
@@ -200,7 +246,10 @@ function EntryDetail({
   const s = entry.structured
   const isZh = isZhText(entry.text)
   return (
-    <aside className="flex w-[400px] shrink-0 flex-col border-l border-zinc-800 bg-zinc-900">
+    <aside
+      className="flex shrink-0 flex-col border-l border-zinc-800 bg-zinc-900"
+      style={{ width }}
+    >
       <div className="flex items-center gap-1 border-b border-zinc-800 px-3 py-2.5">
         <MiniAction
           onClick={() => void toggleStar()}
