@@ -85,7 +85,8 @@ export function registerIpc(): void {
   ipcMain.handle(CH.SETTINGS_GET, () => getSettings())
   ipcMain.handle(CH.SETTINGS_SET, (_e, patch: Partial<AppSettings>) => {
     const next = setSettings(patch)
-    registerShortcuts()
+    // 仅快捷键变化时才重注册，避免频繁保存设置导致快捷键瞬间失效
+    if (patch.hotkeys) registerShortcuts()
     broadcast(CH.SETTINGS_CHANGED, next)
     return next
   })

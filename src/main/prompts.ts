@@ -60,6 +60,7 @@ export function buildLookupMessages(
 
   // 用户模板 + 程序强制的输出格式约定
   const systemPrompt = `${base}\n\n${DATA_RULE}\n${DATA_EXAMPLE[kind]}`
+  console.log(`[ai] 系统提示词 ${systemPrompt.length} 字符 (${kind})`)
 
   const sys: ChatMessage = { role: 'system', content: systemPrompt }
 

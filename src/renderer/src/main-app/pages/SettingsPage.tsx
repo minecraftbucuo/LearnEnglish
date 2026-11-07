@@ -462,30 +462,43 @@ function PromptCardsSection({
   save: (patch: Partial<AppSettings>) => Promise<void>
 }): React.JSX.Element {
   const [kind, setKind] = useState<PromptKindKey>('word')
+  // 文本输入先改本地草稿、失焦才落库，避免每个键都写盘/广播导致卡顿丢字
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
   const customized = !!settings.promptCards?.[kind]
   const cards = settings.promptCards?.[kind] ?? DEFAULT_PROMPT_CARDS[kind]
   const defaultIds = new Set(DEFAULT_PROMPT_CARDS[kind].map((c) => c.id))
 
-  function setCards(next: PromptCard[]): void {
+  const draftKey = (cardId: string, field: 'title' | 'content'): string => `${kind}:${cardId}:${field}`
+  const draftOf = (card: PromptCard, field: 'title' | 'content'): string =>
+    drafts[draftKey(card.id, field)] ?? card[field]
+  const setDraft = (cardId: string, field: 'title' | 'content', value: string): void =>
+    setDrafts((d) => ({ ...d, [draftKey(cardId, field)]: value }))
+  const commit = (card: PromptCard, field: 'title' | 'content'): void => {
+    const value = draftOf(card, field)
+    if (value !== card[field]) setCardsLocal([{ ...card, [field]: value }])
+  }
+
+  function setCardsLocal(next: PromptCard[]): void {
     void save({ promptCards: { ...(settings.promptCards ?? {}), [kind]: next } })
   }
 
   function updateCard(id: string, patch: Partial<PromptCard>): void {
-    setCards(cards.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+    setCardsLocal(cards.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   }
 
   function removeCard(id: string): void {
-    setCards(cards.filter((c) => c.id !== id))
+    setCardsLocal(cards.filter((c) => c.id !== id))
   }
 
   function addCard(): void {
-    setCards([
+    setCardsLocal([
       ...cards,
       { id: `c_${Date.now().toString(36)}`, title: '新要求', content: '', enabled: true }
     ])
   }
 
   function resetKind(): void {
+    setDrafts({})
     const next: PromptCardSet = { ...(settings.promptCards ?? {}) }
     delete next[kind]
     void save({ promptCards: next })
@@ -512,14 +525,9 @@ function PromptCardsSection({
           </button>
         ))}
         <span className="flex-1" />
-        {customized && (
-          <MiniBtn onClick={resetKind}>还原本组默认</MiniBtn>
-        )}
+        {customized && <MiniBtn onClick={resetKind}>还原本组默认</MiniBtn>}
         {settings.promptCards && Object.keys(settings.promptCards).length > 0 && (
-          <MiniBtn
-            danger
-            onClick={() => void save({ promptCards: {} })}
-          >
+          <MiniBtn danger onClick={() => void save({ promptCards: {} })}>
             一键全部还原默认
           </MiniBtn>
         )}
@@ -548,8 +556,9 @@ function PromptCardsSection({
                 />
                 {isCustom ? (
                   <input
-                    value={card.title}
-                    onChange={(e) => updateCard(card.id, { title: e.target.value })}
+                    value={draftOf(card, 'title')}
+                    onChange={(e) => setDraft(card.id, 'title', e.target.value)}
+                    onBlur={() => commit(card, 'title')}
                     placeholder="要求标题"
                     className="min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-800/60 px-2 py-1 text-xs font-medium text-zinc-200 outline-none focus:border-teal-500"
                   />
@@ -569,8 +578,9 @@ function PromptCardsSection({
                 )}
               </div>
               <textarea
-                value={card.content}
-                onChange={(e) => updateCard(card.id, { content: e.target.value })}
+                value={draftOf(card, 'content')}
+                onChange={(e) => setDraft(card.id, 'content', e.target.value)}
+                onBlur={() => commit(card, 'content')}
                 rows={2}
                 placeholder="用大白话描述这个要求，例如：给出美式音标，标明词性和中文释义"
                 spellCheck={false}
