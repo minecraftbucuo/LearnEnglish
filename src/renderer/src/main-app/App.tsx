@@ -84,7 +84,7 @@ export default function App(): React.JSX.Element {
             </button>
           ))}
         </nav>
-        <div className="px-4 pb-4 text-[11px] text-zinc-600">v${__APP_VERSION__} · 数据仅存本机</div>
+        <div className="px-4 pb-4 text-[11px] text-zinc-600">v{__APP_VERSION__} · 数据仅存本机</div>
       </aside>
 
       {/* 拖拽分隔条 */}

@@ -18,6 +18,7 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: { __APP_VERSION__: JSON.stringify(pkg.version) },
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),
