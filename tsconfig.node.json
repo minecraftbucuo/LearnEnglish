@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "composite": true,
+    "noEmit": true,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -12,8 +13,7 @@
     "resolveJsonModule": true,
     "useDefineForClassFields": true,
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": { "@shared/*": ["src/shared/*"] }
+    "paths": { "@shared/*": ["./src/shared/*"] }
   },
   "include": [
     "electron.vite.config.ts",

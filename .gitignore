@@ -6,3 +6,6 @@ dist/
 *.log
 .zcode/
 icon-previews/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
