@@ -1,15 +1,12 @@
 // 查询流程编排：快捷键触发 → 抓取选中文本/接收截图 → 弹窗 → AI 流式讲解 → 持久化
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
-import { app, BrowserWindow, screen } from 'electron'
+import { BrowserWindow, screen } from 'electron'
 import { CH } from '@shared/channels'
 import type { AiDonePayload, EntrySource, EntryType, StructuredData } from '@shared/types'
 import { getActiveProvider, getSettings } from './settings'
 import { captureSelectedText } from './capture'
 import { captureRegionByHwnd } from './screenshot'
-import { streamChat, type ChatMessage } from './ai'
+import { streamChat, type ChatMessage, type ChatContentPart } from './ai'
 import { buildLookupMessages, extractAiData, isSingleWord, isZhShort } from './prompts'
 import type { LookupKind } from './prompt-kinds'
 import { isZhContent } from '@shared/text'
@@ -31,11 +28,9 @@ import {
 
 interface LookupSession {
   id: string
-  text: string // 截图查询初始为 ''，AI 转录后回填
+  text: string
   kind: LookupKind
   source: EntrySource
-  imagePath: string | null
-  imageDataUrl: string | null // 截图查询时给视觉模型的 dataURL
   entryId: number | null
   isStarred: boolean
   messages: ChatMessage[]
@@ -74,8 +69,6 @@ export async function triggerLookup(): Promise<void> {
           lookupId: nl.lookupId,
           text: nl.text,
           source: 'selection',
-          imagePath: null,
-          imageDataUrl: null,
           entryId: nl.entryId,
           isStarred: nl.isStarred,
           hasStructured: !!nl.cachedMarkdown,
@@ -102,8 +95,6 @@ export async function triggerLookup(): Promise<void> {
     lookupId: preId,
     text: '',
     source: 'selection',
-    imagePath: null,
-    imageDataUrl: null,
     entryId: null,
     isStarred: false,
     hasStructured: false,
@@ -136,7 +127,7 @@ export async function triggerScreenshot(): Promise<void> {
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
-/** 覆盖层确认框选结果：隐藏覆盖层 → 等屏幕恢复 → GDI 抓选中区域 → PNG → 进入图片查询 */
+/** 覆盖层确认框选结果：隐藏覆盖层 → 抓屏 → OCR 转文字 → 与普通查询完全同轨 */
 export async function confirmScreenshot(rect: {
   x: number
   y: number
@@ -150,14 +141,55 @@ export async function confirmScreenshot(rect: {
     if (!overlay) throw new Error('覆盖层窗口不存在')
     const cap = captureRegionByHwnd(overlay.getNativeWindowHandle(), overlayScaleFactor, rect)
 
-    const dir = path.join(app.getPath('userData'), 'images')
-    mkdirSync(dir, { recursive: true })
-    const file = path.join(dir, `${Date.now()}.png`)
-    writeFileSync(file, cap.png)
-    startLookup({ text: '', source: 'image', imagePath: file, imageDataUrl: cap.dataUrl })
+    // 先弹占位框（转文字期间），转出的文字就是普通查词的输入
+    const settings = getSettings()
+    const noProvider = !settings.providers.length || !settings.activeProviderId
+    const preId = randomUUID()
+    showPopupNearCursor(false)
+    popupSend(CH.LOOKUP_START, {
+      lookupId: preId,
+      text: '',
+      source: 'selection',
+      entryId: null,
+      isStarred: false,
+      hasStructured: false,
+      noProvider,
+      capturing: true
+    })
+
+    const text = await transcribeImage(cap.dataUrl)
+    if (!text) {
+      popupSend(CH.LOOKUP_FAILED, { lookupId: preId })
+      return
+    }
+    startLookup({ text, source: 'selection' })
   } catch (err) {
     console.error('[lookup] 截图确认失败:', err)
   }
+}
+
+/** 截图 OCR：视觉模型把图里的文字抠出来，只返回文字本身（不讲解、不存图） */
+async function transcribeImage(imageDataUrl: string): Promise<string> {
+  const provider = getActiveProvider()
+  if (!provider) return ''
+  const parts: ChatContentPart[] = [
+    { type: 'image_url', image_url: { url: imageDataUrl } },
+    { type: 'text', text: '转录图中的文字。' }
+  ]
+  const messages: ChatMessage[] = [
+    {
+      role: 'system',
+      content:
+        '你是 OCR 引擎。把图片中的文字逐字转录出来：只输出文字本身，保持原有大小写、标点与换行，不要输出任何解释、标注或多余符号。图中没有文字时只输出空。'
+    },
+    { role: 'user', content: parts }
+  ]
+  const model = provider.visionModel || provider.chatModel
+  let full = ''
+  for await (const delta of streamChat({ provider, model, messages })) {
+    full += delta
+  }
+  return full.trim()
 }
 
 export function cancelScreenshot(): void {
@@ -169,19 +201,15 @@ export function cancelScreenshot(): void {
 function createSession(p: {
   text: string
   source: EntrySource
-  imagePath?: string | null
-  imageDataUrl?: string | null
 }): { session: LookupSession; existing: ReturnType<typeof findEntryByText>; noProvider: boolean } {
   const settings = getSettings()
   const noProvider = !settings.providers.length || !settings.activeProviderId
 
-  const kind: LookupKind = p.source === 'image'
-    ? 'image'
-    : isZhContent(p.text)
-      ? (isZhShort(p.text) ? 'zh_word' : 'zh_sentence')
-      : isSingleWord(p.text)
-        ? 'word'
-        : 'sentence'
+  const kind: LookupKind = isZhContent(p.text)
+    ? (isZhShort(p.text) ? 'zh_word' : 'zh_sentence')
+    : isSingleWord(p.text)
+      ? 'word'
+      : 'sentence'
 
   const existing = p.text ? findEntryByText(p.text) : null
   const session: LookupSession = {
@@ -189,8 +217,6 @@ function createSession(p: {
     text: p.text,
     kind,
     source: p.source,
-    imagePath: p.imagePath ?? null,
-    imageDataUrl: p.imageDataUrl ?? null,
     entryId: existing?.id ?? null,
     isStarred: existing?.isStarred ?? false,
     messages: [],
@@ -212,17 +238,13 @@ function createSession(p: {
 function startLookup(p: {
   text: string
   source: EntrySource
-  imagePath?: string | null
-  imageDataUrl?: string | null
 }): void {
   const { session, existing, noProvider } = createSession(p)
   showPopupNearCursor()
   popupSend(CH.LOOKUP_START, {
     lookupId: session.id,
-    text: p.source === 'image' ? '' : p.text,
+    text: p.text,
     source: session.source,
-    imagePath: session.imagePath,
-    imageDataUrl: session.imageDataUrl,
     entryId: session.entryId,
     isStarred: session.isStarred,
     hasStructured: !!existing?.structured,
@@ -262,15 +284,10 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
 
   if (force || session.messages.length === 0) {
     session.kind = kind
-    session.messages = buildLookupMessages(
-      kind,
-      session.text,
-      session.imageDataUrl,
-      settings.promptCards
-    )
+    session.messages = buildLookupMessages(kind, session.text, settings.promptCards)
   }
 
-  const model = kind === 'image' ? (provider.visionModel || provider.chatModel) : provider.chatModel
+  const model = provider.chatModel
   session.controller = new AbortController()
   session.streaming = true
   // 首次回答（非追问）才写入缓存
@@ -325,10 +342,6 @@ function finishStream(
   const preExisting = session.entryId ? getEntryById(session.entryId) : null
   let finalEntry = preExisting
   if (structured && markdown) {
-    // 截图查询：用转录原文回填 text
-    if (session.source === 'image' && structured.sourceText && !session.text) {
-      session.text = structured.sourceText
-    }
     const type: EntryType =
       structured.type === 'word' || structured.type === 'sentence'
         ? structured.type
@@ -338,8 +351,7 @@ function finishStream(
     finalEntry = finalEntry ?? upsertLookup({
       text: session.text || '（未识别出文本）',
       type,
-      source: session.source,
-      imagePath: session.imagePath
+      source: session.source
     })
     const saved = saveStructured(finalEntry.id, structured, isInitial ? markdown : undefined)
     if (saved) finalEntry = saved
@@ -353,8 +365,7 @@ function finishStream(
     finalEntry = upsertLookup({
       text: session.text,
       type: session.kind === 'word' || session.kind === 'zh_word' ? 'word' : 'sentence',
-      source: session.source,
-      imagePath: session.imagePath
+      source: session.source
     })
     session.entryId = finalEntry.id
   }
@@ -403,8 +414,7 @@ export function starCurrent(
     entry = upsertLookup({
       text,
       type: session.kind === 'sentence' || session.kind === 'zh_sentence' ? 'sentence' : 'word',
-      source: session.source,
-      imagePath: session.imagePath
+      source: session.source
     })
     session.entryId = entry.id
   }
@@ -455,28 +465,13 @@ export async function relookupEntry(
     return
   }
 
-  // 重建查询类型：截图词条带原图重查，其余按词条语言与类型
-  let kind: LookupKind
-  let imageDataUrl: string | null = null
-  if (entry.source === 'image' && entry.imagePath) {
-    try {
-      const buf = await readFile(entry.imagePath)
-      imageDataUrl = `data:image/png;base64,${buf.toString('base64')}`
-      kind = 'image'
-    } catch {
-      relookupSend(sender, CH.ENTRY_RELOOKUP_ERROR, {
-        relookupId,
-        message: '截图文件缺失，无法重新查询。'
-      })
-      return
-    }
-  } else {
-    const zh = isZhContent(entry.text)
-    kind = entry.type === 'word' ? (zh ? 'zh_word' : 'word') : zh ? 'zh_sentence' : 'sentence'
-  }
+  // 重建查询类型：按词条语言与类型（截图词条落库就是普通文本词条，不再有原图）
+  const zh = isZhContent(entry.text)
+  const kind: LookupKind =
+    entry.type === 'word' ? (zh ? 'zh_word' : 'word') : zh ? 'zh_sentence' : 'sentence'
 
   const settings = getSettings()
-  const model = kind === 'image' ? (provider.visionModel || provider.chatModel) : provider.chatModel
+  const model = provider.chatModel
   const controller = new AbortController()
   relookupStreams.set(relookupId, { controller, sender })
   let full = ''
@@ -486,7 +481,7 @@ export async function relookupEntry(
     for await (const delta of streamChat({
       provider,
       model,
-      messages: buildLookupMessages(kind, entry.text, imageDataUrl, settings.promptCards),
+      messages: buildLookupMessages(kind, entry.text, settings.promptCards),
       signal: controller.signal
     })) {
       if (!firstChunk) {

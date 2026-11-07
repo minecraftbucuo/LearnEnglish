@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReviewCard, ReviewStats } from '@shared/types'
 import { intervalPreview, isZhText, speak } from '../../utils'
-import { EntryImage } from '../components/EntryImage'
 import { EmText } from '../../components/EmText'
 
 type Phase = 'idle' | 'session' | 'done'
@@ -435,12 +434,6 @@ function ReviewSession({
               {r.label}
             </button>
           ))}
-        </div>
-      )}
-
-      {entry.source === 'image' && (
-        <div className="mt-3 flex justify-center">
-          <EntryImage entryId={entry.id} />
         </div>
       )}
     </div>

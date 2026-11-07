@@ -123,20 +123,12 @@ export function SettingsPage(): React.JSX.Element {
         </Section>
 
         {/* 数据与存储 */}
-        <Section
-          title="数据与存储"
-          desc="全部数据仅保存在本机。截图以 PNG 文件存放在数据目录的 images 文件夹，数据库只记录路径。"
-        >
+        <Section title="数据与存储" desc="全部数据仅保存在本机：SQLite 数据库 + 配置文件。">
           <div className="space-y-1.5 text-sm text-zinc-300">
             <StorageRow
               label="数据库"
               detail="词条 / 复习进度 / 追问记录"
               value={fmtBytes((storage?.dbBytes ?? 0) + (storage?.dbWalBytes ?? 0))}
-            />
-            <StorageRow
-              label="截图图片"
-              detail={`共 ${storage?.imageCount ?? 0} 张 PNG`}
-              value={fmtBytes(storage?.imageBytes ?? 0)}
             />
             <StorageRow
               label="配置文件"
@@ -149,7 +141,6 @@ export function SettingsPage(): React.JSX.Element {
                 {fmtBytes(
                   (storage?.dbBytes ?? 0) +
                     (storage?.dbWalBytes ?? 0) +
-                    (storage?.imageBytes ?? 0) +
                     (storage?.configBytes ?? 0)
                 )}
               </span>

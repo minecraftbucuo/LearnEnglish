@@ -23,7 +23,6 @@ export const CH = {
   ENTRY_TOGGLE_STAR: 'entry:toggleStar',
   ENTRY_TOGGLE_SUSPEND: 'entry:toggleSuspend',
   ENTRY_DELETE: 'entry:delete',
-  ENTRY_IMAGE_DATA: 'entry:imageData',
   ENTRY_BOLD_TARGETS: 'entry:boldTargets',
   ENTRY_CHAT_ASK: 'entry:chatAsk',
   ENTRY_CHAT_CHUNK: 'entry:chatChunk',

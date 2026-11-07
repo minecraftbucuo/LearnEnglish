@@ -93,7 +93,6 @@ export interface Api {
   entryToggleStar(id: number): Promise<Entry | null>
   entryToggleSuspend(id: number): Promise<Entry | null>
   entryDelete(id: number): Promise<void>
-  entryImageData(id: number): Promise<string | null>
   entryBoldTargets(id: number): Promise<Entry | null>
   entryChatAsk(entryId: number, question: string, chatId: string): Promise<void>
   entryChatAbort(chatId: string): Promise<void>

@@ -1,7 +1,7 @@
 // 主进程与渲染进程共享的类型定义
 
 export type EntryType = 'word' | 'sentence'
-export type EntrySource = 'selection' | 'image' | 'manual'
+export type EntrySource = 'selection' | 'manual'
 export type Rating = 1 | 2 | 3 | 4 // 忘记 / 困难 / 良好 / 简单
 export type ReviewMode = 'recall' | 'spelling'
 
@@ -117,7 +117,7 @@ export interface PromptCard {
   inline?: boolean // 约束型卡：作为普通段落注入，不生成小节标题
 }
 
-export type PromptKindKey = 'word' | 'sentence' | 'zhWord' | 'zhSentence' | 'image'
+export type PromptKindKey = 'word' | 'sentence' | 'zhWord' | 'zhSentence'
 export type PromptCardSet = Partial<Record<PromptKindKey, PromptCard[]>>
 
 export interface AppSettings {
@@ -133,15 +133,13 @@ export interface AppSettings {
 
 export interface LookupStartPayload {
   lookupId: string
-  text: string // 选中文本；截图查询时为 ''
+  text: string
   source: EntrySource
-  imagePath: string | null
-  imageDataUrl: string | null // 弹窗内展示截图用
   entryId: number | null
   isStarred: boolean
   hasStructured: boolean
   noProvider: boolean // 未配置 AI 供应商
-  capturing?: boolean // true = 正在抓取选中文本（弹窗先显示占位状态）
+  capturing?: boolean // true = 正在抓取/识别文本（弹窗先显示占位状态）
   cachedMarkdown?: string | null // 命中缓存的历史讲解（有值则弹窗直接显示，不调 API）
   nested?: boolean // true = 弹窗内嵌套查询（追加卡片，不重置弹窗）
 }
@@ -164,7 +162,5 @@ export interface StorageInfo {
   dataDir: string
   dbBytes: number
   dbWalBytes: number
-  imageCount: number
-  imageBytes: number
   configBytes: number
 }

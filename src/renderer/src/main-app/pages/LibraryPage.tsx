@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { EntriesFilter, Entry, EntryChat, EntrySource, EntryType } from '@shared/types'
 import { fmtDateTime, isZhText, speak } from '../../utils'
-import { EntryImage } from '../components/EntryImage'
 import { EmText } from '../../components/EmText'
 import { Md } from '../../components/Md'
 
@@ -93,9 +92,9 @@ export function LibraryPage(): React.JSX.Element {
               </button>
             ))}
             <span className="mx-1 h-4 w-px bg-zinc-800" />
-            {(['all', 'selection', 'image'] as SourceFilter[]).map((s) => (
+            {(['all', 'selection'] as SourceFilter[]).map((s) => (
               <button key={s} className={chip(source === s)} onClick={() => setSource(s)}>
-                {s === 'all' ? '全部来源' : s === 'selection' ? '选中查词' : '截图'}
+                {s === 'all' ? '全部来源' : '选中查词'}
               </button>
             ))}
             <span className="mx-1 h-4 w-px bg-zinc-800" />
@@ -133,7 +132,6 @@ export function LibraryPage(): React.JSX.Element {
                   {e.type === 'word' ? '词' : '句'}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">{e.text}</span>
-                {e.source === 'image' && <span className="shrink-0 text-xs">🖼️</span>}
                 {e.isStarred && <span className="shrink-0 text-xs">⭐</span>}
                 {e.suspended && <span className="shrink-0 text-[10px] text-zinc-600">暂停</span>}
                 <span className="shrink-0 text-[11px] text-zinc-600">×{e.lookupCount}</span>
@@ -322,7 +320,6 @@ function EntryDetail({
             <span>查询 {entry.lookupCount} 次</span>
             <span>·</span>
             <span>{fmtDateTime(entry.updatedAt)}</span>
-            {entry.source === 'image' && <span>· 🖼️ 截图</span>}
           </div>
         </div>
 
@@ -366,8 +363,6 @@ function EntryDetail({
             )}
           </div>
         )}
-
-        {entry.source === 'image' && <EntryImage entryId={entry.id} />}
 
         {hasMeaning && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-800/40 px-3.5 py-3">

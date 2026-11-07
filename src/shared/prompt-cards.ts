@@ -7,8 +7,7 @@ export const PROMPT_KIND_LABELS: Record<PromptKindKey, string> = {
   word: '单词',
   sentence: '句子',
   zhWord: '中文词',
-  zhSentence: '中文句',
-  image: '截图'
+  zhSentence: '中文句'
 }
 
 export const DEFAULT_PROMPT_CARDS: Record<PromptKindKey, PromptCard[]> = {
@@ -151,28 +150,6 @@ export const DEFAULT_PROMPT_CARDS: Record<PromptKindKey, PromptCard[]> = {
       id: 'tips',
       title: '要点',
       content: '给 1-2 句句式、搭配或文化差异上的注意点；没有就简述句子结构。',
-      enabled: true
-    }
-  ],
-  image: [
-    {
-      id: 'role',
-      title: '角色设定',
-      content: '这是一张屏幕截图，图中包含文本。',
-      enabled: true,
-      locked: true
-    },
-    {
-      id: 'transcribe',
-      title: '转录原文',
-      content: '先逐字转录图中全部文本（保持原文大小写与标点）。',
-      enabled: true
-    },
-    {
-      id: 'route',
-      title: '自动选择讲解方式',
-      content:
-        '再判断内容语言与形态：英文单词/短语按单词模板讲解；英文句子/段落按句子模板讲解；中文词语给出地道英语表达；中文句子翻译成英语并讲解。',
       enabled: true
     }
   ]

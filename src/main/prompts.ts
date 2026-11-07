@@ -3,17 +3,16 @@
 //          + 程序自动追加的结构化输出要求（AI_DATA JSON，用户不可见不可破坏）
 import type { PromptCard, PromptCardSet } from '@shared/types'
 import { DEFAULT_PROMPT_CARDS } from '@shared/prompt-cards'
-import type { ChatMessage, ChatContentPart } from './ai'
+import type { ChatMessage } from './ai'
 import type { LookupKind } from './prompt-kinds'
 
 export type { LookupKind }
 
-const KIND_TO_KEY: Record<LookupKind, 'word' | 'sentence' | 'zhWord' | 'zhSentence' | 'image'> = {
+const KIND_TO_KEY: Record<LookupKind, 'word' | 'sentence' | 'zhWord' | 'zhSentence'> = {
   word: 'word',
   sentence: 'sentence',
   zh_word: 'zhWord',
-  zh_sentence: 'zhSentence',
-  image: 'image'
+  zh_sentence: 'zhSentence'
 }
 
 // 结构化输出约定（程序拼接，用户无需关心；划重点/复习卡片依赖其中字段）
@@ -30,8 +29,7 @@ const DATA_EXAMPLE: Record<LookupKind, string> = {
   zh_word: `中文查词的 JSON 示例：
 <!--AI_DATA {"type":"word","lang":"zh","equivalents":[{"en":"meticulous","phonetic":"/məˈtɪkjələs/","pos":"adj.","note":"最常用，强调对细节极度关注"}],"examples":[{"en":"She is meticulous about her work.","zh":"她对工作一丝不苟。"}]}-->`,
   zh_sentence: `中文句子的 JSON 示例（translation 填英文翻译）：
-<!--AI_DATA {"type":"sentence","lang":"zh","translation":"This measure has a significant impact on the outcome.","keyPoints":[{"term":"显著影响","explanation":"significant impact；比 big effect 更书面"}]}-->`,
-  image: `JSON 示例（英文内容）：\n<!--AI_DATA {"type":"word","sourceText":"...","phonetic":"...","pos":"...","definitionZh":"...","examples":[...]}-->\n中文内容加 lang 与 equivalents，翻译类把 translation 填英文：\n<!--AI_DATA {"type":"sentence","lang":"zh","sourceText":"...","translation":"...","keyPoints":[...]}-->`
+<!--AI_DATA {"type":"sentence","lang":"zh","translation":"This measure has a significant impact on the outcome.","keyPoints":[{"term":"显著影响","explanation":"significant impact；比 big effect 更书面"}]}-->`
 }
 
 /** 约束型卡片（作为普通段落注入，不生成小节标题） */
@@ -63,7 +61,6 @@ export function assemblePromptCards(cards: PromptCard[]): string {
 export function buildLookupMessages(
   kind: LookupKind,
   text: string,
-  imageDataUrl?: string | null,
   cardSet?: PromptCardSet
 ): ChatMessage[] {
   const key = KIND_TO_KEY[kind]
@@ -76,13 +73,6 @@ export function buildLookupMessages(
 
   const sys: ChatMessage = { role: 'system', content: systemPrompt }
 
-  if (kind === 'image' && imageDataUrl) {
-    const parts: ChatContentPart[] = [
-      { type: 'image_url', image_url: { url: imageDataUrl } },
-      { type: 'text', text: '请按系统指令讲解这张图片中的文本内容。' }
-    ]
-    return [sys, { role: 'user', content: parts }]
-  }
   // 用户消息明确"这是要查的词条"，避免模型把词条内容误解为指令（如查"中文""翻译"）
   const wrapped =
     kind === 'word'

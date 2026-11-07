@@ -1,5 +1,4 @@
 import { ipcMain, app, shell } from 'electron'
-import { readFile } from 'node:fs/promises'
 import { CH } from '@shared/channels'
 import type {
   AppSettings,
@@ -74,16 +73,6 @@ export function registerIpc(): void {
     return setSuspended(id, !entry.suspended)
   })
   ipcMain.handle(CH.ENTRY_DELETE, (_e, id: number) => deleteEntry(id))
-  ipcMain.handle(CH.ENTRY_IMAGE_DATA, async (_e, id: number) => {
-    const entry = getEntryById(id)
-    if (!entry?.imagePath) return null
-    try {
-      const buf = await readFile(entry.imagePath)
-      return `data:image/png;base64,${buf.toString('base64')}`
-    } catch {
-      return null
-    }
-  })
   ipcMain.handle(CH.ENTRY_BOLD_TARGETS, (_e, id: number) => boldEntryTargets(id))
 
   // ---- 追问（流式，边生成边推送） ----

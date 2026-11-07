@@ -65,9 +65,7 @@ export default function App(): React.JSX.Element {
         setCapturing(false)
         setManual(false)
         setFromCache(false)
-        setBubbles(
-          p.noProvider ? [] : [{ role: 'user', content: p.source === 'image' ? '🖼️ 截图查询' : p.text }]
-        )
+        setBubbles(p.noProvider ? [] : [{ role: 'user', content: p.text }])
         if (p.noProvider) {
           setStreaming(false)
         } else if (p.cachedMarkdown) {
@@ -238,24 +236,16 @@ export default function App(): React.JSX.Element {
   }
 
   const manualMode = manual && !!session
-  const title = manualMode
-    ? '手动查询'
-    : session
-      ? session.source === 'image'
-        ? '截图查询'
-        : session.text
-      : '查词'
+  const title = manualMode ? '手动查询' : session ? session.text : '查词'
 
-  const isZh = !!session && !manualMode && session.source !== 'image' && isZhText(session.text)
+  const isZh = !!session && !manualMode && isZhText(session.text)
   const badge = manualMode
     ? '手动'
-    : session?.source === 'image'
-      ? '图片'
-      : isZh
-        ? '中→英'
-        : (session?.text.trim().split(/\s+/).length ?? 1) > 1
-          ? '句子'
-          : '单词'
+    : isZh
+      ? '中→英'
+      : (session?.text.trim().split(/\s+/).length ?? 1) > 1
+        ? '句子'
+        : '单词'
 
   return (
     <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
@@ -266,7 +256,7 @@ export default function App(): React.JSX.Element {
           <div className="flex items-center gap-2">
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                session?.source === 'image' || badge === '中→英' || badge === '手动'
+                badge === '中→英' || badge === '手动'
                   ? 'bg-violet-500/15 text-violet-300'
                   : badge === '单词'
                     ? 'bg-teal-500/15 text-teal-300'
@@ -281,7 +271,7 @@ export default function App(): React.JSX.Element {
           </div>
         </div>
         <div className="app-no-drag flex items-center gap-0.5">
-          {!!session && session.source !== 'image' && !isZh && !manualMode && !!session.text && (
+          {!!session && !isZh && !manualMode && !!session.text && (
             <IconBtn title="朗读" onClick={() => session && speak(session.text)}>
               🔊
             </IconBtn>
@@ -315,17 +305,6 @@ export default function App(): React.JSX.Element {
           </IconBtn>
         </div>
       </header>
-
-      {/* 截图预览 */}
-      {session?.imageDataUrl && (
-        <div className="border-b border-zinc-800 bg-zinc-900 px-3.5 py-2">
-          <img
-            src={session.imageDataUrl}
-            alt="查询截图"
-            className="max-h-28 w-auto rounded-md border border-zinc-700"
-          />
-        </div>
-      )}
 
       {/* 正文（双击单词即可在下方追加该词的讲解卡片） */}
       <div
@@ -516,7 +495,7 @@ export default function App(): React.JSX.Element {
     const id = lookupIdRef.current
     if (!id || streaming || !session) return
     setFromCache(false)
-    setBubbles([{ role: 'user', content: session.source === 'image' ? '🖼️ 截图查询' : session.text }])
+    setBubbles([{ role: 'user', content: session.text }])
     setStreaming(true)
     await window.api.aiStart(id, true)
   }

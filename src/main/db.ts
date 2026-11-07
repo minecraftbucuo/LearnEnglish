@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { rmSync, unlinkSync } from 'node:fs'
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import type {
@@ -107,6 +108,27 @@ export function initDb(): void {
   if (!cols.includes('markdown')) {
     db.exec('ALTER TABLE entries ADD COLUMN markdown TEXT')
   }
+  // 老库迁移：截图词条并入普通词条体系（截图=先转文字的普通查询，不再单独存图）
+  const imgRows = db
+    .prepare("SELECT id, image_path FROM entries WHERE source = 'image'")
+    .all() as { id: number; image_path: string | null }[]
+  if (imgRows.length) {
+    const files = imgRows.map((r) => r.image_path).filter((f): f is string => !!f)
+    db.prepare("UPDATE entries SET source = 'selection', image_path = NULL WHERE source = 'image'").run()
+    for (const f of files) {
+      try {
+        unlinkSync(f)
+      } catch {
+        // 文件可能已不存在
+      }
+    }
+    try {
+      rmSync(path.join(app.getPath('userData'), 'images'), { recursive: true, force: true })
+    } catch {
+      // 目录可能不存在
+    }
+    console.log(`[db] 已把 ${imgRows.length} 条截图词条转为普通词条，清理 ${files.length} 个截图文件`)
+  }
 }
 
 // ---------- 行映射 ----------
@@ -164,27 +186,24 @@ export function upsertLookup(p: {
   type: EntryType
   source: EntrySource
   context?: string | null
-  imagePath?: string | null
 }): Entry {
   const t = nowIso()
-  if (p.source !== 'image') {
-    const existing = db
-      .prepare("SELECT * FROM entries WHERE text = ? AND source != 'image'")
-      .get(p.text) as EntryRow | undefined
-    if (existing) {
-      db.prepare(
-        `UPDATE entries SET lookup_count = lookup_count + 1, context = COALESCE(?, context),
-         updated_at = ? WHERE id = ?`
-      ).run(p.context ?? null, t, existing.id)
-      return getEntryById(existing.id)!
-    }
+  const existing = db
+    .prepare("SELECT * FROM entries WHERE text = ? AND source != 'image'")
+    .get(p.text) as EntryRow | undefined
+  if (existing) {
+    db.prepare(
+      `UPDATE entries SET lookup_count = lookup_count + 1, context = COALESCE(?, context),
+       updated_at = ? WHERE id = ?`
+    ).run(p.context ?? null, t, existing.id)
+    return getEntryById(existing.id)!
   }
   const info = db
     .prepare(
       `INSERT INTO entries (type, text, context, source, image_path, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, NULL, ?, ?)`
     )
-    .run(p.type, p.text, p.context ?? null, p.source, p.imagePath ?? null, t, t)
+    .run(p.type, p.text, p.context ?? null, p.source, t, t)
   return getEntryById(Number(info.lastInsertRowid))!
 }
 
@@ -221,29 +240,6 @@ export function saveStructured(
   structured: StructuredData | null,
   markdown?: string
 ): Entry | null {
-  // 截图查询：若 AI 转录出了原文，把 text 修正为原文
-  if (structured?.sourceText) {
-    const entry = getEntryById(id)
-    if (entry && entry.source === 'image') {
-      const dup = findEntryByText(structured.sourceText)
-      if (dup && dup.id !== id) {
-        // 已有相同原文的词条：合并（次数累加），删除临时图片词条
-        db.prepare('UPDATE entries SET lookup_count = lookup_count + 1 WHERE id = ?').run(dup.id)
-        mergeEntryInto(id, dup.id)
-        db.prepare('UPDATE entries SET structured = ?, updated_at = ? WHERE id = ?').run(
-          JSON.stringify(structured),
-          nowIso(),
-          dup.id
-        )
-        return getEntryById(dup.id)
-      }
-      db.prepare('UPDATE entries SET text = ?, updated_at = ? WHERE id = ?').run(
-        structured.sourceText,
-        nowIso(),
-        id
-      )
-    }
-  }
   if (structured) {
     // 每次保存都自动补粗（本地正则，无 API 开销），保证结构化例句与全文讲解的加粗一致
     const bolded = withTargetsBold(structured, getEntryById(id)?.text.trim() ?? '')
@@ -267,20 +263,6 @@ export function saveStructured(
 export function incrementLookupCount(id: number): Entry | null {
   db.prepare('UPDATE entries SET lookup_count = lookup_count + 1 WHERE id = ?').run(id)
   return getEntryById(id)
-}
-
-/** 把 srcId 的复习状态/日志迁移到 targetId 后删除 src（截图查询合并用） */
-function mergeEntryInto(srcId: number, targetId: number): void {
-  const src = db.prepare('SELECT * FROM review_state WHERE entry_id = ?').get(srcId) as
-    | ReviewRow
-    | undefined
-  if (src) {
-    db.prepare('DELETE FROM review_state WHERE entry_id = ?').run(targetId)
-    db.prepare('UPDATE review_state SET entry_id = ? WHERE entry_id = ?').run(targetId, srcId)
-  }
-  db.prepare('UPDATE review_logs SET entry_id = ? WHERE entry_id = ?').run(targetId, srcId)
-  db.prepare('DELETE FROM review_state WHERE entry_id = ?').run(srcId)
-  db.prepare('DELETE FROM entries WHERE id = ?').run(srcId)
 }
 
 export function listEntries(filter: EntriesFilter = {}): Entry[] {
