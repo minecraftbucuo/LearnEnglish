@@ -284,26 +284,18 @@ export function listEntries(filter: EntriesFilter = {}): Entry[] {
 }
 
 export function setStarred(id: number, starred: boolean): Entry | null {
-  db.prepare('UPDATE entries SET is_starred = ?, updated_at = ? WHERE id = ?').run(
-    starred ? 1 : 0,
-    nowIso(),
-    id
-  )
+  db.prepare('UPDATE entries SET is_starred = ? WHERE id = ?').run(starred ? 1 : 0, id)
   if (starred) ensureReviewState(id)
   return getEntryById(id)
 }
 
 export function setSuspended(id: number, suspended: boolean): Entry | null {
-  db.prepare('UPDATE entries SET suspended = ?, updated_at = ? WHERE id = ?').run(
-    suspended ? 1 : 0,
-    nowIso(),
-    id
-  )
+  db.prepare('UPDATE entries SET suspended = ? WHERE id = ?').run(suspended ? 1 : 0, id)
   return getEntryById(id)
 }
 
 export function setNote(id: number, note: string): Entry | null {
-  db.prepare('UPDATE entries SET note = ?, updated_at = ? WHERE id = ?').run(note, nowIso(), id)
+  db.prepare('UPDATE entries SET note = ? WHERE id = ?').run(note, id)
   return getEntryById(id)
 }
 
