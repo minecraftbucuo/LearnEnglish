@@ -509,7 +509,7 @@ export function deleteEntryChat(id: number): void {
 // ---------- 目标词程序化加粗 ----------
 
 /** 在例句里给目标词（含常见屈折变化）加粗；已加粗的先剥离再统一加粗，可重复点击。
- *  内容无变化时不写库，避免 updated_at 变动打乱列表排序。 */
+ *  加粗属于排版修正：无论是否有变化都不更新 updated_at，不影响列表排序。 */
 export function boldEntryTargets(id: number): Entry | null {
   const entry = getEntryById(id)
   if (!entry?.structured?.examples || !entry.structured.examples.length) return entry
@@ -524,9 +524,10 @@ export function boldEntryTargets(id: number): Entry | null {
       en: ex.en.replace(/\*\*/g, '').replace(re, '**$1**')
     }))
   }
-  // 无实际变化则不落库
+  // 无实际变化不写库；有变化也只更新 structured 字段，不动 updated_at
   if (JSON.stringify(s) === JSON.stringify(entry.structured)) return entry
-  return saveStructured(id, s)
+  db.prepare('UPDATE entries SET structured = ? WHERE id = ?').run(JSON.stringify(s), id)
+  return getEntryById(id)
 }
 
 // ---------- 工具 ----------
