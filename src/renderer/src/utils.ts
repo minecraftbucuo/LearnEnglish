@@ -7,6 +7,17 @@ export function isZhText(text: string): boolean {
   return isZhContent(text)
 }
 
+/** 应用主题（html.light 类 + Tailwind 变量覆盖实现黑白切换） */
+export function applyTheme(theme: 'dark' | 'light'): void {
+  document.documentElement.classList.toggle('light', theme === 'light')
+}
+
+/** 初始化时应用已保存的主题，并跟随设置变化 */
+export function initTheme(): void {
+  void window.api.settingsGet().then((s) => applyTheme(s.theme))
+  window.api.onSettingsChanged((s) => applyTheme(s.theme))
+}
+
 /** 系统英文朗读 */
 export function speak(text: string, rate = 1): void {
   if (!('speechSynthesis' in window) || !text.trim()) return

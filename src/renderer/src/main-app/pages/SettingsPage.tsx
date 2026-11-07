@@ -19,14 +19,14 @@ const PRESETS: {
   {
     name: '智谱 GLM',
     baseURL: 'https://open.bigmodel.cn/api/paas/v4',
-    chatModel: 'glm-4-flash',
-    visionModel: 'glm-4v-flash'
+    chatModel: 'glm-4.5-flash',
+    visionModel: 'glm-4.5v'
   },
   {
-    name: '火山方舟 (豆包)',
+    name: '火山方舟',
     baseURL: 'https://ark.cn-beijing.volces.com/api/v3',
-    chatModel: 'doubao-1-5-lite-32k-250115',
-    visionModel: 'doubao-1-5-vision-lite-250315',
+    chatModel: 'doubao-seed-2.0-mini',
+    visionModel: '',
     disableThinking: true
   },
   {
@@ -38,14 +38,14 @@ const PRESETS: {
   {
     name: 'Moonshot Kimi',
     baseURL: 'https://api.moonshot.cn/v1',
-    chatModel: 'moonshot-v1-8k',
-    visionModel: 'moonshot-v1-8k-vision-preview'
+    chatModel: 'kimi-k2-turbo-preview',
+    visionModel: ''
   },
   {
     name: 'OpenAI',
     baseURL: 'https://api.openai.com/v1',
-    chatModel: 'gpt-4o-mini',
-    visionModel: 'gpt-4o-mini'
+    chatModel: 'gpt-5-mini',
+    visionModel: 'gpt-5-mini'
   }
 ]
 
@@ -112,6 +112,30 @@ export function SettingsPage(): React.JSX.Element {
                 value={settings.hotkeys[key]}
                 onChange={(combo) => void save({ hotkeys: { ...settings.hotkeys, [key]: combo } })}
               />
+            ))}
+          </div>
+        </Section>
+
+        {/* 外观 */}
+        <Section title="外观" desc="黑色主题省电护眼，白色主题适合明亮环境。切换即时生效。">
+          <div className="flex gap-2">
+            {(
+              [
+                ['dark', '⬛ 黑色'],
+                ['light', '⬜ 白色']
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => void save({ theme: value })}
+                className={`rounded-lg border px-4 py-1.5 text-sm transition ${
+                  settings.theme === value
+                    ? 'border-teal-500 bg-teal-500/15 text-teal-300'
+                    : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+                }`}
+              >
+                {label}
+              </button>
             ))}
           </div>
         </Section>

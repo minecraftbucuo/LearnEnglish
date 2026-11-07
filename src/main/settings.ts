@@ -9,6 +9,7 @@ const DEFAULTS: AppSettings = {
   dailyNew: 20,
   hideOnBlur: true,
   autostart: false,
+  theme: 'dark',
   promptCards: {}
 }
 

@@ -4,21 +4,36 @@ html {
   color-scheme: dark;
 }
 
+/* 白色主题：反转 zinc 灰阶变量（Tailwind v4 工具类引用这些变量） */
+html.light {
+  color-scheme: light;
+  --color-zinc-950: #f6f6f7;
+  --color-zinc-900: #ffffff;
+  --color-zinc-800: #e4e4e7;
+  --color-zinc-700: #d4d4d8;
+  --color-zinc-600: #9d9da7;
+  --color-zinc-500: #6b6b76;
+  --color-zinc-400: #52525b;
+  --color-zinc-300: #3f3f46;
+  --color-zinc-200: #27272a;
+  --color-zinc-100: #18181b;
+}
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
-  background: #09090b;
+  background: var(--color-zinc-950, #09090b);
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
   user-select: none;
 }
 
-/* AI 讲解 Markdown 正文（深色，可选中以便应用内快捷查词） */
+/* AI 讲解 Markdown 正文 */
 .md-body {
   font-size: 13.5px;
   line-height: 1.7;
-  color: #e4e4e7;
+  color: var(--color-zinc-200, #e4e4e7);
   word-break: break-word;
   user-select: text;
   cursor: text;
@@ -27,7 +42,7 @@ body,
   font-size: 14px;
   font-weight: 700;
   margin: 1em 0 0.4em;
-  color: #2dd4bf;
+  color: #14b8a6;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -60,20 +75,20 @@ body,
   margin: 0.25em 0;
 }
 .md-body strong {
-  color: #5eead4;
+  color: #0d9488;
   font-weight: 600;
 }
 .md-body code {
-  background: #27272a;
+  background: var(--color-zinc-800, #27272a);
   border-radius: 4px;
   padding: 0.1em 0.35em;
   font-size: 0.85em;
-  color: #a5f3fc;
+  color: #0d9488;
 }
 .md-body pre {
-  background: #18181b;
-  border: 1px solid #27272a;
-  color: #e4e4e7;
+  background: var(--color-zinc-900, #18181b);
+  border: 1px solid var(--color-zinc-800, #27272a);
+  color: var(--color-zinc-200, #e4e4e7);
   border-radius: 8px;
   padding: 10px 12px;
   overflow-x: auto;
@@ -85,11 +100,11 @@ body,
   padding: 0;
 }
 .md-body blockquote {
-  border-left: 3px solid #134e4a;
+  border-left: 3px solid #14b8a6;
   margin: 0.5em 0;
   padding: 0.1em 0.8em;
-  color: #a1a1aa;
-  background: rgba(20, 184, 166, 0.06);
+  color: var(--color-zinc-400, #a1a1aa);
+  background: rgba(20, 184, 166, 0.08);
 }
 .md-body table {
   border-collapse: collapse;
@@ -97,30 +112,30 @@ body,
 }
 .md-body th,
 .md-body td {
-  border: 1px solid #3f3f46;
+  border: 1px solid var(--color-zinc-700, #3f3f46);
   padding: 0.25em 0.6em;
   font-size: 0.9em;
 }
 .md-body hr {
   border: none;
-  border-top: 1px solid #27272a;
+  border-top: 1px solid var(--color-zinc-800, #27272a);
   margin: 0.8em 0;
 }
 .md-body a {
-  color: #2dd4bf;
+  color: #0d9488;
 }
 
-/* 细滚动条（深色） */
+/* 细滚动条 */
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: var(--color-zinc-700, #3f3f46);
   border-radius: 4px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: var(--color-zinc-600, #52525b);
 }
 *::-webkit-scrollbar-track {
   background: transparent;

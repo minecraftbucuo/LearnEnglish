@@ -127,6 +127,7 @@ export interface AppSettings {
   dailyNew: number
   hideOnBlur: boolean
   autostart: boolean
+  theme: 'dark' | 'light'
   promptCards: PromptCardSet // 未设置的 kind 使用内置默认
 }
 
