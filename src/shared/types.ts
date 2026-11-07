@@ -98,13 +98,17 @@ export interface HotkeyConfig {
   main: string // 默认 Alt+E
 }
 
-export interface PromptOverrides {
-  word?: string
-  sentence?: string
-  zhWord?: string
-  zhSentence?: string
-  image?: string
+/** 提示词要求卡：勾选启用，程序按顺序拼装为最终提示词 */
+export interface PromptCard {
+  id: string
+  title: string // 非锁定卡会成为 "## 标题" 小节
+  content: string // 大白话需求，程序负责排版
+  enabled: boolean
+  locked?: boolean // 角色卡：始终生效、不可删除
 }
+
+export type PromptKindKey = 'word' | 'sentence' | 'zhWord' | 'zhSentence' | 'image'
+export type PromptCardSet = Partial<Record<PromptKindKey, PromptCard[]>>
 
 export interface AppSettings {
   providers: ProviderConfig[]
@@ -113,7 +117,7 @@ export interface AppSettings {
   dailyNew: number
   hideOnBlur: boolean
   autostart: boolean
-  prompts: PromptOverrides
+  promptCards: PromptCardSet // 未设置的 kind 使用内置默认
 }
 
 export interface LookupStartPayload {

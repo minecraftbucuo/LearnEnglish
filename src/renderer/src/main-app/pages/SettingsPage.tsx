@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
-import type { AppSettings, PromptOverrides, ProviderConfig, ProviderTestResult } from '@shared/types'
-import { DEFAULT_PROMPTS } from '@shared/default-prompts'
+import type {
+  AppSettings,
+  PromptCard,
+  PromptCardSet,
+  PromptKindKey,
+  ProviderConfig,
+  ProviderTestResult
+} from '@shared/types'
+import { DEFAULT_PROMPT_CARDS, PROMPT_KIND_LABELS } from '@shared/prompt-cards'
 
 const PRESETS: {
   name: string
@@ -42,32 +49,15 @@ const PRESETS: {
   }
 ]
 
-const PROMPT_KEYS: [keyof PromptOverrides, string][] = [
-  ['word', '单词讲解'],
-  ['sentence', '句子讲解'],
-  ['zhWord', '中文查词（中→英）'],
-  ['zhSentence', '中文翻译（中→英）'],
-  ['image', '截图讲解']
-]
+const PROMPT_KINDS = Object.keys(PROMPT_KIND_LABELS) as PromptKindKey[]
 
 export function SettingsPage(): React.JSX.Element {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [saved, setSaved] = useState(false)
-  const [promptDrafts, setPromptDrafts] = useState<Record<string, string>>({})
 
   useEffect(() => {
     void window.api.settingsGet().then(setSettings)
   }, [])
-
-  // 文本框显示"当前生效"的提示词：有覆盖用覆盖，否则显示内置默认
-  useEffect(() => {
-    if (!settings) return
-    setPromptDrafts(
-      Object.fromEntries(
-        PROMPT_KEYS.map(([k]) => [k, settings.prompts[k]?.trim() || DEFAULT_PROMPTS[k]])
-      )
-    )
-  }, [settings])
 
   if (!settings)
     return <div className="flex h-full items-center justify-center text-sm text-zinc-500">加载中…</div>
@@ -159,58 +149,8 @@ export function SettingsPage(): React.JSX.Element {
           </label>
         </Section>
 
-        {/* 提示词微调 */}
-        <Section
-          title="提示词自定义"
-          desc="自定义 AI 的讲解风格与结构。输出格式要求由程序自动附加，随便改不会弄坏划重点和复习功能；未改过即显示内置默认。"
-        >
-          <div className="space-y-4">
-            {PROMPT_KEYS.map(([key, label]) => {
-              const def = DEFAULT_PROMPTS[key]
-              const draft = promptDrafts[key] ?? def
-              const modified = draft.trim() !== def.trim()
-              return (
-                <label key={key} className="block">
-                  <span className="mb-1 flex items-center gap-2">
-                    <span className="text-xs font-medium text-zinc-400">{label}</span>
-                    {modified && (
-                      <span className="rounded bg-amber-500/15 px-1.5 text-[10px] text-amber-300">
-                        已自定义
-                      </span>
-                    )}
-                    <span className="flex-1" />
-                    {modified && (
-                      <button
-                        onClick={() => {
-                          setPromptDrafts((d) => ({ ...d, [key]: def }))
-                          void save({ prompts: { ...settings.prompts, [key]: '' } })
-                        }}
-                        className="text-[11px] text-zinc-500 transition hover:text-teal-300"
-                      >
-                        还原默认
-                      </button>
-                    )}
-                  </span>
-                  <textarea
-                    value={draft}
-                    onChange={(e) => setPromptDrafts((d) => ({ ...d, [key]: e.target.value }))}
-                    onBlur={() =>
-                      void save({
-                        prompts: {
-                          ...settings.prompts,
-                          [key]: draft.trim() === def.trim() ? '' : draft
-                        }
-                      })
-                    }
-                    rows={8}
-                    spellCheck={false}
-                    className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-2 font-mono text-[11px] leading-5 text-zinc-300 outline-none transition focus:border-teal-500"
-                  />
-                </label>
-              )
-            })}
-          </div>
-        </Section>
+        {/* 提示词组装 */}
+        <PromptCardsSection settings={settings} save={save} />
       </div>
     </div>
   )
@@ -509,6 +449,144 @@ function HotkeyInput({
         }`}
       />
     </label>
+  )
+}
+
+// ---------- 提示词要求卡编辑器 ----------
+
+function PromptCardsSection({
+  settings,
+  save
+}: {
+  settings: AppSettings
+  save: (patch: Partial<AppSettings>) => Promise<void>
+}): React.JSX.Element {
+  const [kind, setKind] = useState<PromptKindKey>('word')
+  const customized = !!settings.promptCards?.[kind]
+  const cards = settings.promptCards?.[kind] ?? DEFAULT_PROMPT_CARDS[kind]
+  const defaultIds = new Set(DEFAULT_PROMPT_CARDS[kind].map((c) => c.id))
+
+  function setCards(next: PromptCard[]): void {
+    void save({ promptCards: { ...(settings.promptCards ?? {}), [kind]: next } })
+  }
+
+  function updateCard(id: string, patch: Partial<PromptCard>): void {
+    setCards(cards.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+  }
+
+  function removeCard(id: string): void {
+    setCards(cards.filter((c) => c.id !== id))
+  }
+
+  function addCard(): void {
+    setCards([
+      ...cards,
+      { id: `c_${Date.now().toString(36)}`, title: '新要求', content: '', enabled: true }
+    ])
+  }
+
+  function resetKind(): void {
+    const next: PromptCardSet = { ...(settings.promptCards ?? {}) }
+    delete next[kind]
+    void save({ promptCards: next })
+  }
+
+  return (
+    <Section
+      title="提示词组装"
+      desc="勾选要包含的要求卡，内容用大白话写即可，程序会自动排版成完整提示词并附加输出格式约定，随便改不会弄坏划重点和复习功能。"
+    >
+      {/* 类型标签页 */}
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
+        {PROMPT_KINDS.map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className={`rounded-full px-3 py-1 text-xs transition border ${
+              kind === k
+                ? 'border-teal-500 bg-teal-500/15 text-teal-300'
+                : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
+            }`}
+          >
+            {PROMPT_KIND_LABELS[k]}
+          </button>
+        ))}
+        <span className="flex-1" />
+        {customized && (
+          <MiniBtn onClick={resetKind}>还原本组默认</MiniBtn>
+        )}
+        {settings.promptCards && Object.keys(settings.promptCards).length > 0 && (
+          <MiniBtn
+            danger
+            onClick={() => void save({ promptCards: {} })}
+          >
+            一键全部还原默认
+          </MiniBtn>
+        )}
+      </div>
+
+      {/* 卡片列表 */}
+      <div className="space-y-2.5">
+        {cards.map((card) => {
+          const isCustom = !defaultIds.has(card.id)
+          return (
+            <div
+              key={card.id}
+              className={`rounded-xl border px-3.5 py-2.5 transition ${
+                card.enabled
+                  ? 'border-zinc-800 bg-zinc-900'
+                  : 'border-zinc-800/60 bg-zinc-900/50 opacity-55'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={card.enabled}
+                  disabled={card.locked}
+                  onChange={(e) => updateCard(card.id, { enabled: e.target.checked })}
+                  className="h-4 w-4 accent-teal-500"
+                />
+                {isCustom ? (
+                  <input
+                    value={card.title}
+                    onChange={(e) => updateCard(card.id, { title: e.target.value })}
+                    placeholder="要求标题"
+                    className="min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-800/60 px-2 py-1 text-xs font-medium text-zinc-200 outline-none focus:border-teal-500"
+                  />
+                ) : (
+                  <span className="text-xs font-medium text-zinc-200">{card.title}</span>
+                )}
+                {card.locked && (
+                  <span className="text-[10px] text-zinc-600" title="角色设定始终生效">
+                    🔒 始终生效
+                  </span>
+                )}
+                <span className="flex-1" />
+                {isCustom && (
+                  <MiniBtn danger onClick={() => removeCard(card.id)}>
+                    删除
+                  </MiniBtn>
+                )}
+              </div>
+              <textarea
+                value={card.content}
+                onChange={(e) => updateCard(card.id, { content: e.target.value })}
+                rows={2}
+                placeholder="用大白话描述这个要求，例如：给出美式音标，标明词性和中文释义"
+                spellCheck={false}
+                className="mt-2 w-full resize-y rounded-lg border border-zinc-800 bg-zinc-800/40 px-2.5 py-1.5 text-xs leading-5 text-zinc-300 outline-none transition placeholder:text-zinc-600 focus:border-teal-500"
+              />
+            </div>
+          )
+        })}
+        <button
+          onClick={addCard}
+          className="rounded-lg border border-dashed border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 transition hover:border-teal-500 hover:text-teal-300"
+        >
+          ＋ 添加要求卡
+        </button>
+      </div>
+    </Section>
   )
 }
 

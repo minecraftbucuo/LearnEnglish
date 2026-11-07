@@ -4,24 +4,13 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { app, BrowserWindow, screen } from 'electron'
 import { CH } from '@shared/channels'
-import type {
-  AiDonePayload,
-  EntrySource,
-  EntryType,
-  StructuredData,
-  PromptOverrides
-} from '@shared/types'
+import type { AiDonePayload, EntrySource, EntryType, StructuredData } from '@shared/types'
 import { getActiveProvider, getSettings } from './settings'
 import { captureSelectedText } from './capture'
 import { captureRegionByHwnd } from './screenshot'
 import { streamChat, type ChatMessage } from './ai'
-import {
-  buildLookupMessages,
-  extractAiData,
-  isSingleWord,
-  isZhShort,
-  type LookupKind
-} from './prompts'
+import { buildLookupMessages, extractAiData, isSingleWord, isZhShort } from './prompts'
+import type { LookupKind } from './prompt-kinds'
 import { isZhContent } from '@shared/text'
 import { findEntryByText, getEntryById, saveStructured, setStarred, upsertLookup } from './db'
 import {
@@ -269,7 +258,7 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
       kind,
       session.text,
       session.imageDataUrl,
-      settings.prompts as PromptOverrides
+      settings.promptCards
     )
   }
 

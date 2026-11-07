@@ -9,7 +9,7 @@ const DEFAULTS: AppSettings = {
   dailyNew: 20,
   hideOnBlur: true,
   autostart: false,
-  prompts: {}
+  promptCards: {}
 }
 
 const store = new Store<AppSettings>({ defaults: DEFAULTS })
@@ -27,7 +27,7 @@ export function getSettings(): AppSettings {
     ...DEFAULTS,
     ...s,
     hotkeys: { ...DEFAULTS.hotkeys, ...(s.hotkeys ?? {}) },
-    prompts: { ...(s.prompts ?? {}) },
+    promptCards: s.promptCards ?? {},
     providers
   }
 }
@@ -38,7 +38,7 @@ export function setSettings(patch: Partial<AppSettings>): AppSettings {
     ...current,
     ...patch,
     hotkeys: { ...current.hotkeys, ...(patch.hotkeys ?? {}) },
-    prompts: { ...current.prompts, ...(patch.prompts ?? {}) },
+    promptCards: patch.promptCards ?? current.promptCards,
     providers: patch.providers ?? current.providers
   }
   store.set(next)
