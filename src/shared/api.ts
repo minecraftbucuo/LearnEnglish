@@ -1,0 +1,77 @@
+// preload 暴露给渲染进程的 window.api 类型定义
+import type {
+  AiDonePayload,
+  AppSettings,
+  EntriesFilter,
+  Entry,
+  LookupStartPayload,
+  ProviderConfig,
+  ProviderTestResult,
+  Rating,
+  ReviewMode,
+  ReviewQueue,
+  ReviewState,
+  ReviewStats
+} from './types'
+
+export interface AiChunkPayload {
+  lookupId: string
+  delta: string
+}
+
+export interface AiErrorPayload {
+  lookupId: string
+  message: string
+}
+
+export interface OverlayStartPayload {
+  imageDataUrl: string
+}
+
+type Unsubscribe = () => void
+
+export interface Api {
+  // ---- 事件订阅 ----
+  onLookupStart(cb: (p: LookupStartPayload) => void): Unsubscribe
+  onOverlayStart(cb: (p: OverlayStartPayload) => void): Unsubscribe
+  onAiChunk(cb: (p: AiChunkPayload) => void): Unsubscribe
+  onAiDone(cb: (p: AiDonePayload) => void): Unsubscribe
+  onAiError(cb: (p: AiErrorPayload) => void): Unsubscribe
+  onMainNavigate(cb: (tab: string) => void): Unsubscribe
+  onSettingsChanged(cb: (s: AppSettings) => void): Unsubscribe
+
+  // ---- AI 查询 ----
+  aiStart(lookupId: string): Promise<void>
+  aiFollowup(lookupId: string, question: string): Promise<void>
+  aiAbort(lookupId: string): Promise<void>
+  starCurrent(lookupId: string): Promise<{ starred: boolean; entryId: number | null }>
+
+  // ---- 生词本 ----
+  entriesList(filter?: EntriesFilter): Promise<Entry[]>
+  entryGet(id: number): Promise<Entry | null>
+  entrySetNote(id: number, note: string): Promise<Entry | null>
+  entryToggleStar(id: number): Promise<Entry | null>
+  entryToggleSuspend(id: number): Promise<Entry | null>
+  entryDelete(id: number): Promise<void>
+  entryImageData(id: number): Promise<string | null>
+
+  // ---- 复习 ----
+  reviewQueue(): Promise<ReviewQueue>
+  reviewAnswer(entryId: number, rating: Rating, mode: ReviewMode): Promise<ReviewState | null>
+  reviewIntroduced(entryId: number): Promise<void>
+  reviewStats(): Promise<ReviewStats>
+
+  // ---- 设置 ----
+  settingsGet(): Promise<AppSettings>
+  settingsSet(patch: Partial<AppSettings>): Promise<AppSettings>
+  providerTest(p: ProviderConfig, useVision?: boolean): Promise<ProviderTestResult>
+
+  // ---- 截图 ----
+  screenshotConfirm(dataUrl: string): Promise<void>
+  screenshotCancel(): Promise<void>
+
+  // ---- 窗口 ----
+  openMain(tab?: string): Promise<void>
+  hidePopup(): Promise<void>
+  quit(): Promise<void>
+}

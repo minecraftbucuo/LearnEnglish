@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  user-select: none;
+}
+
+/* AI 讲解 Markdown 正文 */
+.md-body {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: #1e293b;
+  word-break: break-word;
+}
+.md-body h2 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 1em 0 0.4em;
+  color: #0f766e;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.md-body h2::before {
+  content: "";
+  display: inline-block;
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: #14b8a6;
+}
+.md-body h2:first-child {
+  margin-top: 0.2em;
+}
+.md-body p {
+  margin: 0.4em 0;
+}
+.md-body ul {
+  margin: 0.3em 0;
+  padding-left: 1.2em;
+  list-style: disc;
+}
+.md-body ol {
+  margin: 0.3em 0;
+  padding-left: 1.5em;
+  list-style: decimal;
+}
+.md-body li {
+  margin: 0.25em 0;
+}
+.md-body strong {
+  color: #0f766e;
+  font-weight: 600;
+}
+.md-body code {
+  background: #e2e8f0;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+}
+.md-body pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
+.md-body pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.md-body blockquote {
+  border-left: 3px solid #99f6e4;
+  margin: 0.5em 0;
+  padding: 0.1em 0.8em;
+  color: #475569;
+  background: #f0fdfa;
+}
+.md-body table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid #cbd5e1;
+  padding: 0.25em 0.6em;
+  font-size: 0.9em;
+}
+.md-body hr {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 0.8em 0;
+}
+.md-body a {
+  color: #0d9488;
+}
+
+/* 细滚动条 */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 无边框窗口可拖拽区域 */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* 流式输出光标 */
+.stream-cursor::after {
+  content: "▍";
+  color: #14b8a6;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 卡片翻转 */
+.flip-3d {
+  transform-style: preserve-3d;
+  transition: transform 0.35s ease;
+  position: relative;
+}
+.flip-3d.flipped {
+  transform: rotateX(180deg);
+}
+.flip-face {
+  backface-visibility: hidden;
+}
+.flip-face-back {
+  transform: rotateX(180deg);
+}
