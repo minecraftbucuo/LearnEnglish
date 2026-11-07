@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import iconUrl from '../assets/icon.png'
 import { LibraryPage } from './pages/LibraryPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { StatsPage } from './pages/StatsPage'
@@ -61,9 +62,7 @@ export default function App(): React.JSX.Element {
         style={{ width: sidebarWidth }}
       >
         <div className="flex items-center gap-2 px-4 pb-3 pt-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-teal-500 text-sm font-bold text-white">
-            E
-          </div>
+          <img src={iconUrl} alt="LearnEnglish" className="h-8 w-8 rounded-lg" />
           <div className="text-sm font-semibold text-zinc-100">LearnEnglish</div>
         </div>
         <nav className="mt-2 flex-1 space-y-1 px-2.5">

@@ -2,7 +2,7 @@
 //   build/icon.png + resources/icon.png（1024，electron-builder 用）
 //   src/main/tray-icon.ts（32px 托盘图标 base64）
 // 用法：node scripts/icon-apply.mjs
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { renderFinalIcon, encodePng } from './icon-final.mjs'
 
@@ -13,6 +13,9 @@ const iconPng = encodePng(size, px)
 const root = path.resolve(import.meta.dirname, '..')
 writeFileSync(path.join(root, 'build', 'icon.png'), iconPng)
 writeFileSync(path.join(root, 'resources', 'icon.png'), iconPng)
+// 渲染层内嵌资源（侧边栏等界面显示用）
+mkdirSync(path.join(root, 'src', 'renderer', 'src', 'assets'), { recursive: true })
+writeFileSync(path.join(root, 'src', 'renderer', 'src', 'assets', 'icon.png'), iconPng)
 
 // 托盘图标 32px（盒式平均降采样）
 const T = 32
