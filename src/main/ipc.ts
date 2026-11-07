@@ -24,7 +24,15 @@ import { getSettings, setSettings } from './settings'
 import { testProvider } from './ai'
 import { registerShortcuts } from './shortcuts'
 import { broadcast, hidePopup, setQuitting, showMainWindow } from './windows'
-import { abortAi, confirmScreenshot, followUp, runAi, starCurrent, cancelScreenshot } from './lookup'
+import {
+  abortAi,
+  cancelScreenshot,
+  confirmScreenshot,
+  followUp,
+  lookupTextFromRenderer,
+  runAi,
+  starCurrent
+} from './lookup'
 
 export function registerIpc(): void {
   // ---- AI 查询 ----
@@ -92,6 +100,7 @@ export function registerIpc(): void {
   // ---- 窗口 / 应用 ----
   ipcMain.handle(CH.APP_OPEN_MAIN, (_e, tab?: string) => showMainWindow(tab))
   ipcMain.handle(CH.APP_HIDE_POPUP, () => hidePopup())
+  ipcMain.handle(CH.APP_LOOKUP_TEXT, (_e, text: string) => lookupTextFromRenderer(text))
   ipcMain.handle(CH.APP_QUIT, () => {
     setQuitting(true)
     app.quit()

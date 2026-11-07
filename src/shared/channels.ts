@@ -34,5 +34,6 @@ export const CH = {
   SCREENSHOT_CANCEL: 'screenshot:cancel',
   APP_OPEN_MAIN: 'app:openMain',
   APP_HIDE_POPUP: 'app:hidePopup',
+  APP_LOOKUP_TEXT: 'app:lookupText', // 主窗口内双击/选中单词直接查
   APP_QUIT: 'app:quit'
 } as const

@@ -14,12 +14,14 @@ body,
   user-select: none;
 }
 
-/* AI 讲解 Markdown 正文（深色） */
+/* AI 讲解 Markdown 正文（深色，可选中以便应用内快捷查词） */
 .md-body {
   font-size: 13.5px;
   line-height: 1.7;
   color: #e4e4e7;
   word-break: break-word;
+  user-select: text;
+  cursor: text;
 }
 .md-body h2 {
   font-size: 14px;

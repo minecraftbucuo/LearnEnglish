@@ -45,6 +45,7 @@ const api: Api = {
 
   openMain: (tab) => ipcRenderer.invoke(CH.APP_OPEN_MAIN, tab),
   hidePopup: () => ipcRenderer.invoke(CH.APP_HIDE_POPUP),
+  lookupText: (text) => ipcRenderer.invoke(CH.APP_LOOKUP_TEXT, text),
   quit: () => ipcRenderer.invoke(CH.APP_QUIT)
 }
 

@@ -21,7 +21,21 @@ export default function App(): React.JSX.Element {
     const off = window.api.onMainNavigate((t) => {
       if (TABS.some((x) => x.key === t)) setTab(t as Tab)
     })
-    return off
+    // 主窗口内双击单词直接查（英文 1-2 个词 / 中文 ≤64 字符；跳过输入框等控件）
+    const onDblClick = (e: MouseEvent): void => {
+      const target = e.target as HTMLElement
+      if (target.closest('input, textarea, [contenteditable]')) return
+      const sel = window.getSelection()?.toString().trim() ?? ''
+      if (!sel || sel.length > 64) return
+      const isZh = /[\u4e00-\u9fff]/.test(sel)
+      if (!isZh && sel.split(/\s+/).length > 2) return
+      void window.api.lookupText(sel)
+    }
+    window.addEventListener('dblclick', onDblClick)
+    return () => {
+      off()
+      window.removeEventListener('dblclick', onDblClick)
+    }
   }, [])
 
   return (
