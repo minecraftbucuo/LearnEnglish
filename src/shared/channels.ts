@@ -40,9 +40,11 @@ export const CH = {
   SETTINGS_GET: 'settings:get',
   SETTINGS_SET: 'settings:set',
   PROVIDER_TEST: 'provider:test',
+  STORAGE_INFO: 'storage:info',
   SCREENSHOT_CONFIRM: 'screenshot:confirm',
   SCREENSHOT_CANCEL: 'screenshot:cancel',
   APP_OPEN_MAIN: 'app:openMain',
   APP_HIDE_POPUP: 'app:hidePopup',
+  APP_OPEN_DATA_DIR: 'app:openDataDir',
   APP_QUIT: 'app:quit'
 } as const

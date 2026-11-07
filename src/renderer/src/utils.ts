@@ -42,6 +42,13 @@ export function fmtDate(iso: string): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/** 字节数人性化显示 */
+export function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(2)} MB`
+}
+
 /** 复习到期时间的人性化描述 */
 export function fmtDue(state: ReviewState): string {
   if (state.reps === 0) return '新卡'

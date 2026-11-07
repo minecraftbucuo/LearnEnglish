@@ -50,12 +50,14 @@ const api: Api = {
   settingsGet: () => ipcRenderer.invoke(CH.SETTINGS_GET),
   settingsSet: (patch) => ipcRenderer.invoke(CH.SETTINGS_SET, patch),
   providerTest: (p, useVision = false) => ipcRenderer.invoke(CH.PROVIDER_TEST, p, useVision),
+  storageInfo: () => ipcRenderer.invoke(CH.STORAGE_INFO),
 
   screenshotConfirm: (dataUrl) => ipcRenderer.invoke(CH.SCREENSHOT_CONFIRM, dataUrl),
   screenshotCancel: () => ipcRenderer.invoke(CH.SCREENSHOT_CANCEL),
 
   openMain: (tab) => ipcRenderer.invoke(CH.APP_OPEN_MAIN, tab),
   hidePopup: () => ipcRenderer.invoke(CH.APP_HIDE_POPUP),
+  openDataDir: () => ipcRenderer.invoke(CH.APP_OPEN_DATA_DIR),
   quit: () => ipcRenderer.invoke(CH.APP_QUIT)
 }
 

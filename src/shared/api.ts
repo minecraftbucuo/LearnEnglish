@@ -9,6 +9,7 @@ import type {
   ProviderConfig,
   ProviderTestResult,
   Rating,
+  StorageInfo,
   ReviewCard,
   ReviewMode,
   ReviewQueue,
@@ -98,6 +99,7 @@ export interface Api {
   settingsGet(): Promise<AppSettings>
   settingsSet(patch: Partial<AppSettings>): Promise<AppSettings>
   providerTest(p: ProviderConfig, useVision?: boolean): Promise<ProviderTestResult>
+  storageInfo(): Promise<StorageInfo>
 
   // ---- 截图 ----
   screenshotConfirm(rect: SelectionRect): Promise<void>
@@ -106,5 +108,6 @@ export interface Api {
   // ---- 窗口 ----
   openMain(tab?: string): Promise<void>
   hidePopup(): Promise<void>
+  openDataDir(): Promise<void>
   quit(): Promise<void>
 }

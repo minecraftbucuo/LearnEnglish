@@ -5,9 +5,11 @@ import type {
   PromptCardSet,
   PromptKindKey,
   ProviderConfig,
-  ProviderTestResult
+  ProviderTestResult,
+  StorageInfo
 } from '@shared/types'
 import { DEFAULT_PROMPT_CARDS, PROMPT_KIND_LABELS } from '@shared/prompt-cards'
+import { fmtBytes } from '../../utils'
 
 const PRESETS: {
   name: string
@@ -54,9 +56,11 @@ const PROMPT_KINDS = Object.keys(PROMPT_KIND_LABELS) as PromptKindKey[]
 export function SettingsPage(): React.JSX.Element {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [saved, setSaved] = useState(false)
+  const [storage, setStorage] = useState<StorageInfo | null>(null)
 
   useEffect(() => {
     void window.api.settingsGet().then(setSettings)
+    void window.api.storageInfo().then(setStorage)
   }, [])
 
   if (!settings)
@@ -116,6 +120,47 @@ export function SettingsPage(): React.JSX.Element {
               />
             ))}
           </div>
+        </Section>
+
+        {/* 数据与存储 */}
+        <Section
+          title="数据与存储"
+          desc="全部数据仅保存在本机。截图以 PNG 文件存放在数据目录的 images 文件夹，数据库只记录路径。"
+        >
+          <div className="space-y-1.5 text-sm text-zinc-300">
+            <StorageRow
+              label="数据库"
+              detail="词条 / 复习进度 / 追问记录"
+              value={fmtBytes((storage?.dbBytes ?? 0) + (storage?.dbWalBytes ?? 0))}
+            />
+            <StorageRow
+              label="截图图片"
+              detail={`共 ${storage?.imageCount ?? 0} 张 PNG`}
+              value={fmtBytes(storage?.imageBytes ?? 0)}
+            />
+            <StorageRow
+              label="配置文件"
+              detail="AI 配置 / 快捷键 / 主题"
+              value={fmtBytes(storage?.configBytes ?? 0)}
+            />
+            <div className="mt-2 flex items-center justify-between border-t border-zinc-800 pt-2.5">
+              <span className="text-xs text-zinc-500">合计</span>
+              <span className="text-sm font-semibold text-zinc-100">
+                {fmtBytes(
+                  (storage?.dbBytes ?? 0) +
+                    (storage?.dbWalBytes ?? 0) +
+                    (storage?.imageBytes ?? 0) +
+                    (storage?.configBytes ?? 0)
+                )}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => void window.api.openDataDir()}
+            className="mt-3 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-teal-500 hover:text-teal-300"
+          >
+            📂 打开数据文件夹
+          </button>
         </Section>
 
         {/* 外观 */}
@@ -624,6 +669,26 @@ function PromptCardsSection({
         </button>
       </div>
     </Section>
+  )
+}
+
+function StorageRow({
+  label,
+  detail,
+  value
+}: {
+  label: string
+  detail: string
+  value: string
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <div className="text-sm text-zinc-200">{label}</div>
+        <div className="text-[11px] text-zinc-500">{detail}</div>
+      </div>
+      <div className="text-sm tabular-nums text-zinc-400">{value}</div>
+    </div>
   )
 }
 

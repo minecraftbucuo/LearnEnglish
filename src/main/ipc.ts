@@ -1,4 +1,4 @@
-import { ipcMain, app } from 'electron'
+import { ipcMain, app, shell } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { CH } from '@shared/channels'
 import type {
@@ -27,6 +27,7 @@ import {
 } from './db'
 import { getActiveProvider, getSettings, setSettings } from './settings'
 import { streamChat, testProvider } from './ai'
+import { getStorageInfo } from './storage'
 
 // 进行中的追问流（chatId → 状态），用于推送增量与取消
 const chatStreams = new Map<
@@ -157,6 +158,7 @@ export function registerIpc(): void {
   ipcMain.handle(CH.PROVIDER_TEST, (_e, provider: ProviderConfig, useVision: boolean) =>
     testProvider(provider, useVision)
   )
+  ipcMain.handle(CH.STORAGE_INFO, () => getStorageInfo())
 
   // ---- 截图 ----
   ipcMain.handle(
@@ -168,6 +170,7 @@ export function registerIpc(): void {
   // ---- 窗口 / 应用 ----
   ipcMain.handle(CH.APP_OPEN_MAIN, (_e, tab?: string) => showMainWindow(tab))
   ipcMain.handle(CH.APP_HIDE_POPUP, () => hidePopup())
+  ipcMain.handle(CH.APP_OPEN_DATA_DIR, () => void shell.openPath(app.getPath('userData')))
   ipcMain.handle(CH.APP_QUIT, () => {
     setQuitting(true)
     app.quit()

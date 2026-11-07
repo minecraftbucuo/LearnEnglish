@@ -158,3 +158,13 @@ export interface ProviderTestResult {
   message: string
   latencyMs?: number
 }
+
+/** 本机数据占用情况 */
+export interface StorageInfo {
+  dataDir: string
+  dbBytes: number
+  dbWalBytes: number
+  imageCount: number
+  imageBytes: number
+  configBytes: number
+}
