@@ -371,7 +371,7 @@ export function abortAi(lookupId: string): void {
   sessions.get(lookupId)?.controller?.abort()
 }
 
-/** 弹窗内划重点 */
+/** 弹窗内划重点/取消重点（toggle） */
 export function starCurrent(
   lookupId: string
 ): { starred: boolean; entryId: number | null } {
@@ -389,9 +389,18 @@ export function starCurrent(
     })
     session.entryId = entry.id
   }
-  const updated = setStarred(entry.id, true)
-  session.isStarred = true
-  return { starred: true, entryId: updated?.id ?? entry.id }
+  // toggle：已划重点则取消，否则划入
+  const next = !session.isStarred
+  const updated = setStarred(entry.id, next)
+  session.isStarred = next
+  return { starred: session.isStarred, entryId: updated?.id ?? entry.id }
+}
+
+/** 弹窗手动输入查询（未抓到选中文本时的手动模式） */
+export function lookupTextFromRenderer(text: string): void {
+  const t = text.trim()
+  if (!t || t.length > 500) return
+  startLookup({ text: t, source: 'manual' })
 }
 
 export function unstarEntry(entryId: number): void {

@@ -108,6 +108,7 @@ export interface Api {
   // ---- 窗口 ----
   openMain(tab?: string): Promise<void>
   hidePopup(): Promise<void>
+  lookupText(text: string): Promise<void>
   openDataDir(): Promise<void>
   quit(): Promise<void>
 }

@@ -42,6 +42,7 @@ import {
   confirmScreenshot,
   createNestedLookup,
   followUp,
+  lookupTextFromRenderer,
   runAi,
   starCurrent
 } from './lookup'
@@ -170,6 +171,7 @@ export function registerIpc(): void {
   // ---- 窗口 / 应用 ----
   ipcMain.handle(CH.APP_OPEN_MAIN, (_e, tab?: string) => showMainWindow(tab))
   ipcMain.handle(CH.APP_HIDE_POPUP, () => hidePopup())
+  ipcMain.handle(CH.APP_LOOKUP_TEXT, (_e, text: string) => lookupTextFromRenderer(text))
   ipcMain.handle(CH.APP_OPEN_DATA_DIR, () => void shell.openPath(app.getPath('userData')))
   ipcMain.handle(CH.APP_QUIT, () => {
     setQuitting(true)

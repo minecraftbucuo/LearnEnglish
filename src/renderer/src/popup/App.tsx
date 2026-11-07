@@ -29,6 +29,7 @@ export default function App(): React.JSX.Element {
   const [starred, setStarred] = useState(false)
   const [input, setInput] = useState('')
   const [capturing, setCapturing] = useState(false)
+  const [manual, setManual] = useState(false)
   const [fromCache, setFromCache] = useState(false)
   const [stack, setStack] = useState<NestedCard[]>([])
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -62,6 +63,7 @@ export default function App(): React.JSX.Element {
           return
         }
         setCapturing(false)
+        setManual(false)
         setFromCache(false)
         setBubbles(
           p.noProvider ? [] : [{ role: 'user', content: p.source === 'image' ? '🖼️ 截图查询' : p.text }]
@@ -76,6 +78,15 @@ export default function App(): React.JSX.Element {
           setStreaming(true)
           void window.api.aiStart(p.lookupId)
         }
+      }),
+      window.api.onLookupFailed(({ lookupId }) => {
+        if (lookupId !== lookupIdRef.current) return
+        // 没抓到选中文本 → 转为手动查询模式（自己输入单词查询）
+        setCapturing(false)
+        setStreaming(false)
+        setFromCache(false)
+        setBubbles([])
+        setManual(true)
       }),
       window.api.onAiChunk(({ lookupId, delta }: AiChunkPayload) => {
         if (lookupId === lookupIdRef.current) {
@@ -166,9 +177,10 @@ export default function App(): React.JSX.Element {
 
   async function star(): Promise<void> {
     const id = lookupIdRef.current
-    if (!id || starred) return
+    if (!id || streaming) return
+    // toggle：划入重点 ⇄ 取消重点
     const r = await window.api.starCurrent(id)
-    if (r.starred) setStarred(true)
+    setStarred(r.starred)
   }
 
   /** 弹窗内双击单词 → 嵌套查询卡片 */
@@ -211,23 +223,33 @@ export default function App(): React.JSX.Element {
 
   async function send(): Promise<void> {
     const q = input.trim()
+    if (!q || streaming) return
+    // 手动查询模式：无会话/空文本时，输入即为发起查询
+    if (manual || !lookupIdRef.current || bubbles[bubbles.length - 1]?.role !== 'assistant') {
+      setManual(false)
+      await window.api.lookupText(q)
+      return
+    }
     const id = lookupIdRef.current
-    if (!q || streaming || !id) return
     setInput('')
     setBubbles((bs) => [...bs, { role: 'user', content: q }])
     setStreaming(true)
     await window.api.aiFollowup(id, q)
   }
 
-  const title = session
-    ? session.source === 'image'
-      ? '截图查询'
-      : session.text
-    : '查词'
+  const manualMode = manual && !!session
+  const title = manualMode
+    ? '手动查询'
+    : session
+      ? session.source === 'image'
+        ? '截图查询'
+        : session.text
+      : '查词'
 
-  const isZh = !!session && session.source !== 'image' && isZhText(session.text)
-  const badge =
-    session?.source === 'image'
+  const isZh = !!session && !manualMode && session.source !== 'image' && isZhText(session.text)
+  const badge = manualMode
+    ? '手动'
+    : session?.source === 'image'
       ? '图片'
       : isZh
         ? '中→英'
@@ -244,7 +266,7 @@ export default function App(): React.JSX.Element {
           <div className="flex items-center gap-2">
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                session?.source === 'image' || badge === '中→英'
+                session?.source === 'image' || badge === '中→英' || badge === '手动'
                   ? 'bg-violet-500/15 text-violet-300'
                   : badge === '单词'
                     ? 'bg-teal-500/15 text-teal-300'
@@ -259,21 +281,29 @@ export default function App(): React.JSX.Element {
           </div>
         </div>
         <div className="app-no-drag flex items-center gap-0.5">
-          {session?.source !== 'image' && !isZh && (
+          {!!session && session.source !== 'image' && !isZh && !manualMode && !!session.text && (
             <IconBtn title="朗读" onClick={() => session && speak(session.text)}>
               🔊
             </IconBtn>
           )}
-          <IconBtn title="划入重点 (Ctrl+S)" onClick={() => void star()} active={starred}>
-            {starred ? '⭐' : '☆'}
-          </IconBtn>
-          <IconBtn
-            title="重新生成讲解（重新调用 AI）"
-            onClick={() => void regenerate()}
-            busy={streaming || capturing}
-          >
-            🔄
-          </IconBtn>
+          {!manualMode && session?.text && (
+            <IconBtn
+              title={starred ? '取消重点 (Ctrl+S)' : '划入重点 (Ctrl+S)'}
+              onClick={() => void star()}
+              active={starred}
+            >
+              {starred ? '⭐' : '☆'}
+            </IconBtn>
+          )}
+          {!manualMode && session?.text && (
+            <IconBtn
+              title="重新生成讲解（重新调用 AI）"
+              onClick={() => void regenerate()}
+              busy={streaming || capturing}
+            >
+              🔄
+            </IconBtn>
+          )}
           <IconBtn title="打开主窗口" onClick={() => void window.api.openMain()}>
             📚
           </IconBtn>
@@ -308,6 +338,10 @@ export default function App(): React.JSX.Element {
         }}
       >
         {!session && <Empty text="在任意应用中选中文本，按 Alt+Q 即可查询" />}
+
+        {manualMode && bubbles.length === 0 && (
+          <Empty text="输入要查询的单词或句子，在下方回车即可" />
+        )}
 
         {session?.noProvider && (
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
@@ -456,13 +490,19 @@ export default function App(): React.JSX.Element {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) void send()
             }}
-            placeholder={streaming ? '讲解中…' : '继续追问，回车发送（双击单词可插入讲解卡片）'}
-            disabled={streaming || !session || session.noProvider}
+            placeholder={
+              manualMode
+                ? '输入要查询的单词或句子，回车'
+                : streaming
+                  ? '讲解中…'
+                  : '继续追问，回车发送（双击单词可插入讲解卡片）'
+            }
+            disabled={streaming || (!manualMode && (!session || session.noProvider))}
             className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-[13px] text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500 focus:bg-zinc-800 disabled:opacity-50"
           />
           <button
             onClick={() => void send()}
-            disabled={streaming || !input.trim()}
+            disabled={streaming || !input.trim() || (!manualMode && (!session || session.noProvider))}
             className="rounded-lg bg-teal-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-teal-500 disabled:opacity-40"
           >
             发送

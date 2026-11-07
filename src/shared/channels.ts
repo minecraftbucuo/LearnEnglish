@@ -46,5 +46,6 @@ export const CH = {
   APP_OPEN_MAIN: 'app:openMain',
   APP_HIDE_POPUP: 'app:hidePopup',
   APP_OPEN_DATA_DIR: 'app:openDataDir',
+  APP_LOOKUP_TEXT: 'app:lookupText',
   APP_QUIT: 'app:quit'
 } as const
