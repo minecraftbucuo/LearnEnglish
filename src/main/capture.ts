@@ -1,9 +1,10 @@
 // 选中文本捕获（v2）：
 // 1. 注入前先合成"松开 Alt/Shift/Win"，避免快捷键修饰键污染 Ctrl+C（Alt+Q 按住时注入会变成 Ctrl+Alt+C）
 // 2. 用 GetClipboardSequenceNumber 检测复制是否真的发生——不清空剪贴板、无需还原、不误读旧内容
-import { clipboard } from 'electron'
+import { clipboard, BrowserWindow } from 'electron'
 import { spawn } from 'node:child_process'
 import koffi from 'koffi'
+import { getPopupWindow } from './windows'
 
 const VK_SHIFT = 0x10
 const VK_CONTROL = 0x11
@@ -93,6 +94,12 @@ export interface CaptureResult {
 export async function captureSelectedText(): Promise<CaptureResult> {
   const t0 = Date.now()
   const seq0 = getClipboardSeq ? getClipboardSeq() : -1
+
+  // 防呆：若我们的弹窗正持有焦点，先隐藏，保证 Ctrl+C 落在目标应用上
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused && focused === getPopupWindow()) {
+    focused.hide()
+  }
 
   const injected = pressCtrlC()
   if (!injected) pressCtrlCPowerShell()

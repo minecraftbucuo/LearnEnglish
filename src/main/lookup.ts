@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { app, type Display } from 'electron'
+import { app, screen } from 'electron'
 import { CH } from '@shared/channels'
 import type {
   AiDonePayload,
@@ -13,11 +13,17 @@ import type {
 } from '@shared/types'
 import { getActiveProvider, getSettings } from './settings'
 import { captureSelectedText } from './capture'
-import { captureDisplayImage } from './screenshot'
+import { captureRegionByHwnd } from './screenshot'
 import { streamChat, type ChatMessage } from './ai'
 import { buildLookupMessages, extractAiData, isSingleWord, type LookupKind } from './prompts'
 import { findEntryByText, getEntryById, saveStructured, setStarred, upsertLookup } from './db'
-import { getPopupWindow, hideOverlay, showOverlay, showPopupNearCursor } from './windows'
+import {
+  getOverlayWindow,
+  getPopupWindow,
+  hideOverlay,
+  showOverlay,
+  showPopupNearCursor
+} from './windows'
 
 interface LookupSession {
   id: string
@@ -41,14 +47,14 @@ function popupSend(channel: string, payload: unknown): void {
 
 // ---------- 触发入口 ----------
 
-/** Alt+Q：抓取选中文本并查词（弹窗立即出现，抓取完成后填充内容） */
+/** Alt+Q：抓取选中文本并查词（弹窗无焦点瞬现，抓取完成后聚焦并填充内容） */
 export async function triggerLookup(): Promise<void> {
   const settings = getSettings()
   const noProvider = !settings.providers.length || !settings.activeProviderId
   const preId = randomUUID()
 
-  // 先弹窗占位，消除感知延迟
-  showPopupNearCursor()
+  // 先无焦点弹窗占位（不能抢焦点，否则模拟的 Ctrl+C 会打到弹窗上）
+  showPopupNearCursor(false)
   popupSend(CH.LOOKUP_START, {
     lookupId: preId,
     text: '',
@@ -70,27 +76,44 @@ export async function triggerLookup(): Promise<void> {
   startLookup({ text: cap.text, source: 'selection' })
 }
 
-/** Alt+X：截屏并打开框选覆盖层 */
+// 覆盖层对应的显示器（确认框选时换算物理坐标用）
+let overlayScaleFactor = 1
+
+/** Alt+X：打开框选覆盖层（不预抓屏，覆盖层直接盖在活屏幕上） */
 export async function triggerScreenshot(): Promise<void> {
   try {
-    const { payload, display } = await captureDisplayImage()
-    await showOverlay(display, payload)
+    const cursor = screen.getCursorScreenPoint()
+    const display = screen.getDisplayNearestPoint(cursor)
+    overlayScaleFactor = display.scaleFactor
+    await showOverlay(display, { scaleFactor: display.scaleFactor })
   } catch (err) {
     console.error('[lookup] screenshot failed:', err)
   }
 }
 
-/** 覆盖层确认框选结果 */
-export function confirmScreenshot(croppedDataUrl: string): void {
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
+/** 覆盖层确认框选结果：隐藏覆盖层 → 等屏幕恢复 → GDI 抓选中区域 → PNG → 进入图片查询 */
+export async function confirmScreenshot(rect: {
+  x: number
+  y: number
+  w: number
+  h: number
+}): Promise<void> {
   hideOverlay()
+  await sleep(90) // 等覆盖层从屏幕上消失，避免把自己截进去
   try {
+    const overlay = getOverlayWindow()
+    if (!overlay) throw new Error('覆盖层窗口不存在')
+    const cap = captureRegionByHwnd(overlay.getNativeWindowHandle(), overlayScaleFactor, rect)
+
     const dir = path.join(app.getPath('userData'), 'images')
     mkdirSync(dir, { recursive: true })
     const file = path.join(dir, `${Date.now()}.png`)
-    writeFileSync(file, Buffer.from(croppedDataUrl.split(',')[1] ?? '', 'base64'))
-    startLookup({ text: '', source: 'image', imagePath: file, imageDataUrl: croppedDataUrl })
+    writeFileSync(file, cap.png)
+    startLookup({ text: '', source: 'image', imagePath: file, imageDataUrl: cap.dataUrl })
   } catch (err) {
-    console.error('[lookup] save screenshot failed:', err)
+    console.error('[lookup] 截图确认失败:', err)
   }
 }
 

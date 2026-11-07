@@ -123,15 +123,6 @@ export interface LookupStartPayload {
   capturing?: boolean // true = 正在抓取选中文本（弹窗先显示占位状态）
 }
 
-/** 截图覆盖层数据：原始 RGBA 位图 + 当前显示器在位图中的物理矩形 */
-export interface ScreenCapturePayload {
-  buf: Uint8Array
-  width: number
-  height: number
-  rect: { x: number; y: number; w: number; h: number }
-  scaleFactor: number
-}
-
 export interface AiDonePayload {
   lookupId: string
   markdown: string // 已剥离 AI_DATA 的最终正文

@@ -11,8 +11,7 @@ import type {
   ReviewMode,
   ReviewQueue,
   ReviewState,
-  ReviewStats,
-  ScreenCapturePayload
+  ReviewStats
 } from './types'
 
 export interface AiChunkPayload {
@@ -29,13 +28,24 @@ export interface LookupFailedPayload {
   lookupId: string
 }
 
+export interface OverlayStartPayload {
+  scaleFactor: number
+}
+
+export interface SelectionRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 type Unsubscribe = () => void
 
 export interface Api {
   // ---- 事件订阅 ----
   onLookupStart(cb: (p: LookupStartPayload) => void): Unsubscribe
   onLookupFailed(cb: (p: LookupFailedPayload) => void): Unsubscribe
-  onOverlayStart(cb: (p: ScreenCapturePayload) => void): Unsubscribe
+  onOverlayStart(cb: (p: OverlayStartPayload) => void): Unsubscribe
   onAiChunk(cb: (p: AiChunkPayload) => void): Unsubscribe
   onAiDone(cb: (p: AiDonePayload) => void): Unsubscribe
   onAiError(cb: (p: AiErrorPayload) => void): Unsubscribe
@@ -69,7 +79,7 @@ export interface Api {
   providerTest(p: ProviderConfig, useVision?: boolean): Promise<ProviderTestResult>
 
   // ---- 截图 ----
-  screenshotConfirm(dataUrl: string): Promise<void>
+  screenshotConfirm(rect: SelectionRect): Promise<void>
   screenshotCancel(): Promise<void>
 
   // ---- 窗口 ----

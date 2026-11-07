@@ -99,7 +99,7 @@ export function createPopupWindow(): BrowserWindow {
   return popupWindow
 }
 
-export function showPopupNearCursor(): BrowserWindow {
+export function showPopupNearCursor(focused = true): BrowserWindow {
   if (!popupWindow || popupWindow.isDestroyed()) createPopupWindow()
   const win = popupWindow!
   const p = screen.getCursorScreenPoint()
@@ -109,8 +109,13 @@ export function showPopupNearCursor(): BrowserWindow {
   const x = Math.min(Math.max(p.x - Math.round(w / 2), wa.x + 8), wa.x + wa.width - w - 8)
   const y = Math.min(Math.max(p.y + 24, wa.y + 8), wa.y + wa.height - h - 8)
   win.setPosition(x, y)
-  win.show()
-  win.focus()
+  if (focused) {
+    win.show()
+    win.focus()
+  } else {
+    // 无焦点显示：抓取选中文本期间不能抢走目标应用的焦点
+    win.showInactive()
+  }
   return win
 }
 
@@ -177,6 +182,10 @@ export function hideOverlay(): void {
   if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
     overlayWindow.hide()
   }
+}
+
+export function getOverlayWindow(): BrowserWindow | null {
+  return overlayWindow && !overlayWindow.isDestroyed() ? overlayWindow : null
 }
 
 // ---------- 广播 ----------

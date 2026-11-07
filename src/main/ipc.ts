@@ -83,7 +83,10 @@ export function registerIpc(): void {
   )
 
   // ---- 截图 ----
-  ipcMain.handle(CH.SCREENSHOT_CONFIRM, (_e, dataUrl: string) => confirmScreenshot(dataUrl))
+  ipcMain.handle(
+    CH.SCREENSHOT_CONFIRM,
+    (_e, rect: { x: number; y: number; w: number; h: number }) => confirmScreenshot(rect)
+  )
   ipcMain.handle(CH.SCREENSHOT_CANCEL, () => cancelScreenshot())
 
   // ---- 窗口 / 应用 ----
