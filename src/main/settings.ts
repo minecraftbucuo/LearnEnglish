@@ -24,15 +24,14 @@ export function getSettings(): AppSettings {
       p.disableThinking = /volces\.com|bigmodel\.cn/.test(p.baseURL)
     }
   }
-  // 兼容旧配置：单词卡的「音标与释义」拆分为「音标」「释义」两张独立卡
-  const wordCards = s.promptCards?.word
+  // 兼容旧配置：单词卡的「音标与释义」拆分为「音标」「释义」两张独立卡（不就地变异 store 缓存）
+  let promptCards = s.promptCards ?? {}
+  const wordCards = promptCards.word
   if (wordCards) {
     const idx = wordCards.findIndex((c) => c.id === 'phonetic' && c.title !== '音标')
     if (idx >= 0) {
       const old = wordCards[idx]
-      wordCards.splice(
-        idx,
-        1,
+      const split: typeof wordCards = [
         { id: 'phonetic', title: '音标', content: '给出美式音标。', enabled: old.enabled },
         {
           id: 'definition',
@@ -40,14 +39,15 @@ export function getSettings(): AppSettings {
           content: '标明词性并给简明中文释义（多个常用词性可并列）。',
           enabled: old.enabled
         }
-      )
+      ]
+      promptCards = { ...promptCards, word: [...wordCards.slice(0, idx), ...split, ...wordCards.slice(idx + 1)] }
     }
   }
   return {
     ...DEFAULTS,
     ...s,
     hotkeys: { ...DEFAULTS.hotkeys, ...(s.hotkeys ?? {}) },
-    promptCards: s.promptCards ?? {},
+    promptCards,
     providers
   }
 }

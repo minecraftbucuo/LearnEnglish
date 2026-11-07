@@ -547,7 +547,9 @@ function PromptCardsSection({
     setDrafts((d) => ({ ...d, [draftKey(cardId, field)]: value }))
   const commit = (card: PromptCard, field: 'title' | 'content'): void => {
     const value = draftOf(card, field)
-    if (value !== card[field]) setCardsLocal([{ ...card, [field]: value }])
+    if (value !== card[field]) {
+      setCardsLocal(cards.map((c) => (c.id === card.id ? { ...c, [field]: value } : c)))
+    }
   }
 
   function setCardsLocal(next: PromptCard[]): void {
