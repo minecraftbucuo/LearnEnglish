@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LibraryPage } from './pages/LibraryPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { StatsPage } from './pages/StatsPage'
@@ -16,6 +16,12 @@ const TABS: { key: Tab; icon: string; label: string }[] = [
 export default function App(): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('library')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    const v = Number(localStorage.getItem('le_sidebar_width'))
+    return v >= 140 && v <= 300 ? v : 176
+  })
+  const draggingRef = useRef(false)
+  const widthRef = useRef(sidebarWidth)
 
   useEffect(() => {
     const off = window.api.onMainNavigate((t) => {
@@ -24,10 +30,35 @@ export default function App(): React.JSX.Element {
     return off
   }, [])
 
+  // 侧边栏宽度拖拽（带记忆）
+  useEffect(() => {
+    const onMove = (e: MouseEvent): void => {
+      if (!draggingRef.current) return
+      const w = Math.min(Math.max(e.clientX, 140), 300)
+      widthRef.current = w
+      setSidebarWidth(w)
+    }
+    const onUp = (): void => {
+      if (!draggingRef.current) return
+      draggingRef.current = false
+      document.body.style.cursor = ''
+      localStorage.setItem('le_sidebar_width', String(widthRef.current))
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
   return (
     <div className="flex h-full bg-zinc-950 text-zinc-100">
       {/* 侧边栏 */}
-      <aside className="flex w-44 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
+      <aside
+        className="flex shrink-0 flex-col border-r border-zinc-800 bg-zinc-900"
+        style={{ width: sidebarWidth }}
+      >
         <div className="flex items-center gap-2 px-4 pb-3 pt-5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-teal-500 text-sm font-bold text-white">
             E
@@ -55,6 +86,16 @@ export default function App(): React.JSX.Element {
         </nav>
         <div className="px-4 pb-4 text-[11px] text-zinc-600">v0.1.0 · 数据仅存本机</div>
       </aside>
+
+      {/* 拖拽分隔条 */}
+      <div
+        className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-teal-500/40"
+        onMouseDown={(e) => {
+          e.preventDefault()
+          draggingRef.current = true
+          document.body.style.cursor = 'col-resize'
+        }}
+      />
 
       {/* 内容区 */}
       <main className="min-w-0 flex-1 overflow-hidden">
