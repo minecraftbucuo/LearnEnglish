@@ -191,7 +191,6 @@ function EntryDetail({
     relookupId: string
     answer: string
     error: string | null
-    done: boolean
   } | null>(null)
   const entryIdRef = useRef(entry.id)
   const onChangedRef = useRef(onChanged)
@@ -228,9 +227,7 @@ function EntryDetail({
         )
       }),
       window.api.onRelookupDone(({ relookupId, entry: updated, markdown }) => {
-        setRelookup((r) =>
-          r && r.relookupId === relookupId ? { ...r, answer: markdown, done: true } : r
-        )
+        setRelookup((r) => (r && r.relookupId === relookupId ? null : r))
         // 只就地刷新当前查看的词条；截图合并等场景 id 已变，切回时自然加载
         if (updated.id === entryIdRef.current) void onChangedRef.current()
       }),
@@ -269,15 +266,11 @@ function EntryDetail({
     await window.api.entryChatDelete(id)
     setChats((cs) => cs.filter((c) => c.id !== id))
   }
-  async function boldTargets(): Promise<void> {
-    await window.api.entryBoldTargets(entry.id)
-    await onChanged()
-  }
   /** 重新调用 AI 查询：流式显示在下方卡片，完成后覆盖讲解缓存并刷新词条 */
   async function requery(): Promise<void> {
-    if (relookup && !relookup.done && !relookup.error) return
+    if (relookup && !relookup.error) return
     const relookupId = crypto.randomUUID()
-    setRelookup({ relookupId, answer: '', error: null, done: false })
+    setRelookup({ relookupId, answer: '', error: null })
     await window.api.entryRelookup(entry.id, relookupId)
   }
 
@@ -301,7 +294,7 @@ function EntryDetail({
           onClick={() => void requery()}
           title="重新调用 AI 查询，更新讲解内容"
         >
-          {relookup && !relookup.done && !relookup.error ? '⏳ 查询中…' : '🔄 重新查询'}
+          {relookup && !relookup.error ? '⏳ 查询中…' : '🔄 重新查询'}
         </MiniAction>
         <div className="flex-1" />
         <MiniAction onClick={() => void toggleSuspend()} title="暂停后不进入复习队列">
@@ -342,19 +335,13 @@ function EntryDetail({
           <div className="rounded-xl border border-teal-500/25 bg-zinc-900/60 px-3 py-2">
             <div className="flex items-center gap-2">
               <span className="text-xs font-semibold text-teal-300">
-                {relookup.error
-                  ? '⚠️ 重新查询失败'
-                  : relookup.done
-                    ? '🔄 最新 AI 讲解'
-                    : '🔄 重新查询中…'}
+                {relookup.error ? '⚠️ 重新查询失败' : '🔄 重新查询中…'}
               </span>
               <div className="flex-1" />
               <button
-                title={relookup.done || relookup.error ? '收起' : '取消'}
+                title={relookup.error ? '关闭' : '取消'}
                 onClick={() => {
-                  if (!relookup.done && !relookup.error) {
-                    void window.api.entryRelookupAbort(relookup.relookupId)
-                  }
+                  if (!relookup.error) void window.api.entryRelookupAbort(relookup.relookupId)
                   setRelookup(null)
                 }}
                 className="shrink-0 text-zinc-600 transition hover:text-zinc-300"
@@ -367,7 +354,7 @@ function EntryDetail({
             ) : relookup.answer ? (
               <div className="mt-1 select-text">
                 <Md>{relookup.answer}</Md>
-                {!relookup.done && <span className="stream-cursor text-teal-400" />}
+                <span className="stream-cursor text-teal-400" />
               </div>
             ) : (
               <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
@@ -380,41 +367,15 @@ function EntryDetail({
 
         {entry.source === 'image' && <EntryImage entryId={entry.id} />}
 
-        {s?.equivalents && s.equivalents.length > 0 && (
-          <div>
-            <SectionTitle>英语表达</SectionTitle>
-            <div className="space-y-2.5">
-              {s.equivalents.map((eq, i) => (
-                <div key={i}>
-                  <div className="text-[14px]">
-                    <span className="font-semibold text-teal-300">
-                      <EmText text={eq.en} boldClass="font-semibold" />
-                    </span>
-                    {eq.phonetic && <span className="ml-2 text-xs text-zinc-500">{eq.phonetic}</span>}
-                    {eq.pos && <span className="ml-1.5 text-xs text-teal-500">{eq.pos}</span>}
-                  </div>
-                  {eq.note && (
-                    <div className="text-xs leading-5 text-zinc-400">
-                      <EmText text={eq.note} boldClass="font-medium text-zinc-200" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {s && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-800/40 px-3.5 py-3">
-            {(s.phonetic || s.pos || s.definitionZh) && (
-              <div className="mb-1.5 text-sm text-zinc-200">
-                {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}
-                {s.pos && <span className="mr-1 font-medium text-teal-300">{s.pos}</span>}
-                <span>
-                  <EmText text={s.definitionZh ?? ''} />
-                </span>
-              </div>
-            )}
+            <div className="mb-1.5 text-sm text-zinc-200">
+              {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}
+              {s.pos && <span className="mr-1 font-medium text-teal-300">{s.pos}</span>}
+              <span>
+                <EmText text={s.definitionZh ?? ''} />
+              </span>
+            </div>
             {s.translation && (
               <div className="text-sm text-zinc-200">
                 <EmText text={s.translation} />
@@ -426,58 +387,11 @@ function EntryDetail({
           </div>
         )}
 
-        {s?.examples && s.examples.length > 0 && (
+        {entry.markdown && (
           <div>
-            <div className="mb-1.5 mt-1 flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-500">例句</span>
-              {entry.type === 'word' && (
-                <button
-                  onClick={() => void boldTargets()}
-                  title="模型没加粗目标词时，点这里程序化补上"
-                  className="text-[11px] text-zinc-500 transition hover:text-teal-300"
-                >
-                  ✏️ 加粗目标词
-                </button>
-              )}
-            </div>
-            <div className="space-y-2">
-              {s.examples.map((ex, i) => (
-                <div key={i} className="text-[13px] leading-6">
-                  <div className="select-text text-zinc-200">
-                    <EmText text={ex.en} />
-                  </div>
-                  <div className="text-zinc-500">
-                    <EmText text={ex.zh} boldClass="font-medium" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {s?.keyPoints && s.keyPoints.length > 0 && (
-          <div>
-            <SectionTitle>词汇精讲</SectionTitle>
-            <div className="space-y-1.5">
-              {s.keyPoints.map((k, i) => (
-                <div key={i} className="text-[13px] leading-6">
-                  <span className="font-medium text-teal-300">
-                    <EmText text={k.term} boldClass="font-medium" />
-                  </span>
-                  <span className="select-text text-zinc-400">
-                    ：<EmText text={k.explanation} boldClass="font-medium text-zinc-200" />
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {s?.grammar && (
-          <div>
-            <SectionTitle>语法结构</SectionTitle>
-            <div className="select-text text-[13px] leading-6 text-zinc-400">
-              <EmText text={s.grammar} boldClass="font-medium text-zinc-200" />
+            <SectionTitle>📖 完整讲解</SectionTitle>
+            <div className="select-text text-[13px] leading-6 text-zinc-200">
+              <Md>{entry.markdown}</Md>
             </div>
           </div>
         )}
@@ -489,17 +403,6 @@ function EntryDetail({
               {entry.context}
             </div>
           </div>
-        )}
-
-        {entry.structured && (
-          <details className="text-xs text-zinc-600">
-            <summary className="cursor-pointer select-none hover:text-zinc-400">
-              查看全部结构化字段
-            </summary>
-            <pre className="mt-2 overflow-x-auto rounded-lg bg-zinc-900 p-3 text-[11px] leading-5 text-zinc-400 ring-1 ring-zinc-800">
-              {JSON.stringify(entry.structured, null, 2)}
-            </pre>
-          </details>
         )}
 
         <div>

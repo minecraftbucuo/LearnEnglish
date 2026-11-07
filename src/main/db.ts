@@ -200,6 +200,22 @@ export function findEntryByText(text: string): Entry | null {
   return r ? rowToEntry(r) : null
 }
 
+/** 程序化给例句里的目标词加粗（含常见屈折变化；幂等：先剥离旧加粗再统一加）。
+ *  模型经常在 markdown 全文里加粗了、在结构化例句里忘了，保存时统一自动补齐。 */
+function withTargetsBold(structured: StructuredData, word: string): StructuredData {
+  if (!structured.examples?.length || !word || word.length > 40) return structured
+  const esc = word.replace(/[.*+?${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`\\b(${esc}(?:s|es|ed|d|ing)?)\\b`, 'gi')
+  const next: StructuredData = {
+    ...structured,
+    examples: structured.examples.map((ex) => ({
+      ...ex,
+      en: ex.en.replace(/\*\*/g, '').replace(re, '**$1**')
+    }))
+  }
+  return JSON.stringify(next) === JSON.stringify(structured) ? structured : next
+}
+
 export function saveStructured(
   id: number,
   structured: StructuredData | null,
@@ -229,8 +245,10 @@ export function saveStructured(
     }
   }
   if (structured) {
+    // 每次保存都自动补粗（本地正则，无 API 开销），保证结构化例句与全文讲解的加粗一致
+    const bolded = withTargetsBold(structured, getEntryById(id)?.text.trim() ?? '')
     db.prepare('UPDATE entries SET structured = ?, updated_at = ? WHERE id = ?').run(
-      JSON.stringify(structured),
+      JSON.stringify(bolded),
       nowIso(),
       id
     )
@@ -506,24 +524,14 @@ export function deleteEntryChat(id: number): void {
 
 // ---------- 目标词程序化加粗 ----------
 
-/** 在例句里给目标词（含常见屈折变化）加粗；已加粗的先剥离再统一加粗，可重复点击。
+/** 手动给词条例句补粗（UI 已下线，接口保留备用）。
  *  加粗属于排版修正：无论是否有变化都不更新 updated_at，不影响列表排序。 */
 export function boldEntryTargets(id: number): Entry | null {
   const entry = getEntryById(id)
-  if (!entry?.structured?.examples || !entry.structured.examples.length) return entry
-  const word = entry.text.trim()
-  if (!word || word.length > 40) return entry
-  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const re = new RegExp(`\\b(${esc}(?:s|es|ed|d|ing)?)\\b`, 'gi')
-  const s: StructuredData = {
-    ...entry.structured,
-    examples: entry.structured.examples.map((ex) => ({
-      ...ex,
-      en: ex.en.replace(/\*\*/g, '').replace(re, '**$1**')
-    }))
-  }
+  if (!entry?.structured) return entry
+  const s = withTargetsBold(entry.structured, entry.text.trim())
   // 无实际变化不写库；有变化也只更新 structured 字段，不动 updated_at
-  if (JSON.stringify(s) === JSON.stringify(entry.structured)) return entry
+  if (s === entry.structured) return entry
   db.prepare('UPDATE entries SET structured = ? WHERE id = ?').run(JSON.stringify(s), id)
   return getEntryById(id)
 }

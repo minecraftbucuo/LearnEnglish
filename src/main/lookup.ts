@@ -480,6 +480,8 @@ export async function relookupEntry(
   const controller = new AbortController()
   relookupStreams.set(relookupId, { controller, sender })
   let full = ''
+  let firstChunk = 0
+  const t0 = Date.now()
   try {
     for await (const delta of streamChat({
       provider,
@@ -487,6 +489,10 @@ export async function relookupEntry(
       messages: buildLookupMessages(kind, entry.text, imageDataUrl, settings.promptCards),
       signal: controller.signal
     })) {
+      if (!firstChunk) {
+        firstChunk = Date.now()
+        console.log(`[ai] 首字延迟 ${firstChunk - t0}ms (${provider.name}/${model})`)
+      }
       full += delta
       relookupSend(sender, CH.ENTRY_RELOOKUP_CHUNK, { relookupId, delta })
     }
@@ -504,6 +510,9 @@ export async function relookupEntry(
   } finally {
     relookupStreams.delete(relookupId)
   }
+  console.log(
+    `[ai] 完成 总耗时 ${Date.now() - t0}ms 输出 ${full.length} 字符 (${provider.name}/${model})`
+  )
 
   const { markdown, data } = extractAiData(full)
   const saved = saveStructured(entryId, sanitizeStructured(data), markdown)
