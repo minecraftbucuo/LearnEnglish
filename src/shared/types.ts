@@ -105,6 +105,7 @@ export interface PromptCard {
   content: string // 大白话需求，程序负责排版
   enabled: boolean
   locked?: boolean // 角色卡：始终生效、不可删除
+  inline?: boolean // 约束型卡：作为普通段落注入，不生成小节标题
 }
 
 export type PromptKindKey = 'word' | 'sentence' | 'zhWord' | 'zhSentence' | 'image'

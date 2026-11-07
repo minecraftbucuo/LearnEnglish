@@ -34,18 +34,30 @@ const DATA_EXAMPLE: Record<LookupKind, string> = {
   image: `JSON 示例（英文内容）：\n<!--AI_DATA {"type":"word","sourceText":"...","phonetic":"...","pos":"...","definitionZh":"...","examples":[...]}-->\n中文内容加 lang 与 equivalents，翻译类把 translation 填英文：\n<!--AI_DATA {"type":"sentence","lang":"zh","sourceText":"...","translation":"...","keyPoints":[...]}-->`
 }
 
-/** 把卡片拼装为提示词正文：角色卡直接生效，其余卡成为 "## 标题" 小节 */
+/** 约束型卡片（作为普通段落注入，不生成小节标题） */
+const INLINE_CARD_IDS = new Set(['limit'])
+
+/** 把卡片拼装为提示词正文：
+ *  角色卡直接生效 → 约束卡作普通段落 → 强约束的 Markdown 小节结构说明 → "## 标题" 小节 */
 export function assemblePromptCards(cards: PromptCard[]): string {
-  const parts: string[] = []
+  const role: string[] = []
+  const inline: string[] = []
+  const sections: string[] = []
   for (const c of cards) {
-    if (!c.enabled) continue
+    if (!c.enabled || !c.content.trim()) continue
     if (c.locked) {
-      if (c.content.trim()) parts.push(c.content.trim())
-    } else if (c.content.trim()) {
-      parts.push(`## ${c.title.trim() || '要求'}\n${c.content.trim()}`)
+      role.push(c.content.trim())
+    } else if (c.inline || INLINE_CARD_IDS.has(c.id)) {
+      inline.push(c.content.trim())
+    } else {
+      sections.push(`## ${c.title.trim() || '要求'}\n${c.content.trim()}`)
     }
   }
-  return parts.join('\n\n')
+  const structureNote =
+    sections.length > 0
+      ? '请严格按照以下 Markdown 结构输出：每个小节用二级标题（##）开头，按顺序输出，不要省略小节标题，也不要把多个小节合并成一段。'
+      : ''
+  return [...role, ...inline, structureNote, ...sections].filter(Boolean).join('\n\n')
 }
 
 export function buildLookupMessages(

@@ -25,7 +25,8 @@ export const DEFAULT_PROMPT_CARDS: Record<PromptKindKey, PromptCard[]> = {
       id: 'limit',
       title: '篇幅',
       content: '正文总长不超过 350 字（例句不算在内），内容真实、简洁。',
-      enabled: true
+      enabled: true,
+      inline: true
     },
     {
       id: 'phonetic',
