@@ -25,6 +25,7 @@ interface EntryRow {
   source: EntrySource
   image_path: string | null
   structured: string | null
+  markdown: string | null
   note: string
   is_starred: number
   suspended: number
@@ -58,6 +59,7 @@ export function initDb(): void {
       source TEXT NOT NULL DEFAULT 'selection',
       image_path TEXT,
       structured TEXT,
+      markdown TEXT,
       note TEXT NOT NULL DEFAULT '',
       is_starred INTEGER NOT NULL DEFAULT 0,
       suspended INTEGER NOT NULL DEFAULT 0,
@@ -89,6 +91,13 @@ export function initDb(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_logs_reviewed ON review_logs(reviewed_at);
   `)
+  // 老库迁移：补 markdown 缓存列
+  const cols = (db.prepare('PRAGMA table_info(entries)').all() as { name: string }[]).map(
+    (c) => c.name
+  )
+  if (!cols.includes('markdown')) {
+    db.exec('ALTER TABLE entries ADD COLUMN markdown TEXT')
+  }
 }
 
 // ---------- 行映射 ----------
@@ -127,6 +136,7 @@ function rowToEntry(r: EntryRow): Entry {
     source: r.source,
     imagePath: r.image_path,
     structured,
+    markdown: r.markdown ?? null,
     note: r.note,
     isStarred: !!r.is_starred,
     suspended: !!r.suspended,
@@ -181,9 +191,13 @@ export function findEntryByText(text: string): Entry | null {
   return r ? rowToEntry(r) : null
 }
 
-export function saveStructured(id: number, structured: StructuredData): Entry | null {
+export function saveStructured(
+  id: number,
+  structured: StructuredData | null,
+  markdown?: string
+): Entry | null {
   // 截图查询：若 AI 转录出了原文，把 text 修正为原文
-  if (structured.sourceText) {
+  if (structured?.sourceText) {
     const entry = getEntryById(id)
     if (entry && entry.source === 'image') {
       const dup = findEntryByText(structured.sourceText)
@@ -205,11 +219,20 @@ export function saveStructured(id: number, structured: StructuredData): Entry | 
       )
     }
   }
-  db.prepare('UPDATE entries SET structured = ?, updated_at = ? WHERE id = ?').run(
-    JSON.stringify(structured),
-    nowIso(),
-    id
-  )
+  if (structured) {
+    db.prepare('UPDATE entries SET structured = ?, updated_at = ? WHERE id = ?').run(
+      JSON.stringify(structured),
+      nowIso(),
+      id
+    )
+  }
+  if (markdown !== undefined) {
+    db.prepare('UPDATE entries SET markdown = ?, updated_at = ? WHERE id = ?').run(
+      markdown,
+      nowIso(),
+      id
+    )
+  }
   return getEntryById(id)
 }
 

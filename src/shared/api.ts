@@ -53,7 +53,7 @@ export interface Api {
   onSettingsChanged(cb: (s: AppSettings) => void): Unsubscribe
 
   // ---- AI 查询 ----
-  aiStart(lookupId: string): Promise<void>
+  aiStart(lookupId: string, force?: boolean): Promise<void>
   aiFollowup(lookupId: string, question: string): Promise<void>
   aiAbort(lookupId: string): Promise<void>
   starCurrent(lookupId: string): Promise<{ starred: boolean; entryId: number | null }>

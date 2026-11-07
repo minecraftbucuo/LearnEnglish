@@ -17,6 +17,7 @@ export default function App(): React.JSX.Element {
   const [starred, setStarred] = useState(false)
   const [input, setInput] = useState('')
   const [capturing, setCapturing] = useState(false)
+  const [fromCache, setFromCache] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const lookupIdRef = useRef<string | null>(null)
 
@@ -31,16 +32,23 @@ export default function App(): React.JSX.Element {
         if (p.capturing) {
           // 抓取占位状态
           setCapturing(true)
+          setFromCache(false)
           setBubbles([])
           setStreaming(false)
           return
         }
         setCapturing(false)
+        setFromCache(false)
         setBubbles(
           p.noProvider ? [] : [{ role: 'user', content: p.source === 'image' ? '🖼️ 截图查询' : p.text }]
         )
         if (p.noProvider) {
           setStreaming(false)
+        } else if (p.cachedMarkdown) {
+          // 命中缓存：直接展示历史讲解，不调 API
+          setStreaming(false)
+          setFromCache(true)
+          setBubbles((bs) => [...bs, { role: 'assistant', content: p.cachedMarkdown! }])
         } else {
           setStreaming(true)
           void window.api.aiStart(p.lookupId)
@@ -110,6 +118,18 @@ export default function App(): React.JSX.Element {
     if (r.starred) setStarred(true)
   }
 
+  /** 重新生成：丢弃缓存，重新调 API */
+  async function regenerate(): Promise<void> {
+    const id = lookupIdRef.current
+    if (!id || streaming || !session) return
+    setFromCache(false)
+    setBubbles([
+      { role: 'user', content: session.source === 'image' ? '🖼️ 截图查询' : session.text }
+    ])
+    setStreaming(true)
+    await window.api.aiStart(id, true)
+  }
+
   async function send(): Promise<void> {
     const q = input.trim()
     const id = lookupIdRef.current
@@ -168,6 +188,13 @@ export default function App(): React.JSX.Element {
           <IconBtn title="划入重点 (Ctrl+S)" onClick={() => void star()} active={starred}>
             {starred ? '⭐' : '☆'}
           </IconBtn>
+          <IconBtn
+            title="重新生成讲解（重新调用 AI）"
+            onClick={() => void regenerate()}
+            busy={streaming || capturing}
+          >
+            🔄
+          </IconBtn>
           <IconBtn title="打开主窗口" onClick={() => void window.api.openMain()}>
             📚
           </IconBtn>
@@ -221,12 +248,24 @@ export default function App(): React.JSX.Element {
               </div>
             </div>
           ) : (
-            <div
-              key={i}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 shadow-sm shadow-black/30"
-            >
-              <Md>{b.content}</Md>
-              {streaming && i === bubbles.length - 1 && <span className="stream-cursor text-teal-400" />}
+            <div key={i}>
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 shadow-sm shadow-black/30">
+                <Md>{b.content}</Md>
+                {streaming && i === bubbles.length - 1 && (
+                  <span className="stream-cursor text-teal-400" />
+                )}
+              </div>
+              {fromCache && i === bubbles.length - 1 && (
+                <div className="mt-1.5 flex items-center justify-end gap-2 text-[11px] text-zinc-500">
+                  <span>⚡ 已用上次查询的缓存</span>
+                  <button
+                    onClick={() => void regenerate()}
+                    className="rounded px-1.5 py-0.5 text-teal-400 transition hover:bg-zinc-800"
+                  >
+                    🔄 重新生成
+                  </button>
+                </div>
+              )}
             </div>
           )
         )}
@@ -279,18 +318,21 @@ function IconBtn({
   children,
   title,
   onClick,
-  active
+  active,
+  busy
 }: {
   children: React.ReactNode
   title: string
   onClick: () => void
   active?: boolean
+  busy?: boolean
 }): React.JSX.Element {
   return (
     <button
       title={title}
       onClick={onClick}
-      className={`flex h-7 w-7 items-center justify-center rounded-md text-[13px] transition hover:bg-zinc-800 ${
+      disabled={busy}
+      className={`flex h-7 w-7 items-center justify-center rounded-md text-[13px] transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 ${
         active ? 'text-amber-400' : 'text-zinc-400'
       }`}
     >

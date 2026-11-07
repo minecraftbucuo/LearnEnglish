@@ -28,7 +28,7 @@ import { abortAi, confirmScreenshot, followUp, runAi, starCurrent, cancelScreens
 
 export function registerIpc(): void {
   // ---- AI 查询 ----
-  ipcMain.handle(CH.AI_START, (_e, lookupId: string) => runAi(lookupId))
+  ipcMain.handle(CH.AI_START, (_e, lookupId: string, force?: boolean) => runAi(lookupId, force))
   ipcMain.handle(CH.AI_FOLLOWUP, (_e, lookupId: string, question: string) =>
     followUp(lookupId, question)
   )

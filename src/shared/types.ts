@@ -39,6 +39,7 @@ export interface Entry {
   source: EntrySource
   imagePath: string | null
   structured: StructuredData | null
+  markdown: string | null // 最近一次 AI 讲解原文（缓存复用，避免重复调 API）
   note: string
   isStarred: boolean
   suspended: boolean
@@ -126,6 +127,7 @@ export interface LookupStartPayload {
   hasStructured: boolean
   noProvider: boolean // 未配置 AI 供应商
   capturing?: boolean // true = 正在抓取选中文本（弹窗先显示占位状态）
+  cachedMarkdown?: string | null // 命中缓存的历史讲解（有值则弹窗直接显示，不调 API）
 }
 
 export interface AiDonePayload {

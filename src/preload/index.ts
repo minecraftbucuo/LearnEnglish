@@ -18,7 +18,7 @@ const api: Api = {
   onMainNavigate: (cb) => subscribe(CH.MAIN_NAVIGATE, cb as never),
   onSettingsChanged: (cb) => subscribe(CH.SETTINGS_CHANGED, cb as never),
 
-  aiStart: (lookupId) => ipcRenderer.invoke(CH.AI_START, lookupId),
+  aiStart: (lookupId, force = false) => ipcRenderer.invoke(CH.AI_START, lookupId, force),
   aiFollowup: (lookupId, question) => ipcRenderer.invoke(CH.AI_FOLLOWUP, lookupId, question),
   aiAbort: (lookupId) => ipcRenderer.invoke(CH.AI_ABORT, lookupId),
   starCurrent: (lookupId) => ipcRenderer.invoke(CH.STAR_CURRENT, lookupId),

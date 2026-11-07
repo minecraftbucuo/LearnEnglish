@@ -181,12 +181,13 @@ function startLookup(p: {
     entryId: session.entryId,
     isStarred: session.isStarred,
     hasStructured: !!existing?.structured,
+    cachedMarkdown: existing?.markdown ?? null,
     noProvider
   })
 }
 
-/** 开始/重查：构建消息并流式请求 */
-export async function runAi(lookupId: string, kindOverride?: LookupKind): Promise<void> {
+/** 开始/重查：构建消息并流式请求。force=true 时丢弃历史重新生成（弹窗「重新生成」按钮） */
+export async function runAi(lookupId: string, force = false): Promise<void> {
   const session = sessions.get(lookupId)
   if (!session) return
   const provider = getActiveProvider()
@@ -195,9 +196,9 @@ export async function runAi(lookupId: string, kindOverride?: LookupKind): Promis
     return
   }
   const settings = getSettings()
-  const kind = kindOverride ?? session.kind
+  const kind = session.kind
 
-  if (session.messages.length === 0 || kindOverride) {
+  if (force || session.messages.length === 0) {
     session.kind = kind
     session.messages = buildLookupMessages(
       kind,
@@ -210,6 +211,8 @@ export async function runAi(lookupId: string, kindOverride?: LookupKind): Promis
   const model = kind === 'image' ? (provider.visionModel || provider.chatModel) : provider.chatModel
   session.controller = new AbortController()
   session.streaming = true
+  // 首次回答（非追问）才写入缓存
+  const isInitial = force || session.messages.length <= 2
   let full = ''
   const t0 = Date.now()
   let firstChunk = 0
@@ -230,7 +233,7 @@ export async function runAi(lookupId: string, kindOverride?: LookupKind): Promis
   } catch (err) {
     session.streaming = false
     if (err instanceof Error && err.name === 'AbortError') {
-      finishStream(session, full)
+      finishStream(session, full, isInitial)
       return
     }
     popupSend(CH.AI_ERROR, {
@@ -243,10 +246,10 @@ export async function runAi(lookupId: string, kindOverride?: LookupKind): Promis
   console.log(
     `[ai] 完成 总耗时 ${Date.now() - t0}ms 输出 ${full.length} 字符 (${provider.name}/${model})`
   )
-  finishStream(session, full)
+  finishStream(session, full, isInitial)
 }
 
-function finishStream(session: LookupSession, full: string): void {
+function finishStream(session: LookupSession, full: string, isInitial: boolean): void {
   const { markdown, data } = extractAiData(full)
   let structured: StructuredData | null = sanitizeStructured(data)
   // 追问轮次一般没有 AI_DATA；保留旧的结构化数据
@@ -270,10 +273,14 @@ function finishStream(session: LookupSession, full: string): void {
       source: session.source,
       imagePath: session.imagePath
     })
-    const saved = saveStructured(finalEntry.id, structured)
+    const saved = saveStructured(finalEntry.id, structured, isInitial ? markdown : undefined)
     if (saved) finalEntry = saved
     session.entryId = finalEntry.id
     session.isStarred = finalEntry.isStarred
+  } else if (isInitial && finalEntry && markdown) {
+    // 模型没输出结构化数据，但正文可用：仍缓存正文
+    const saved = saveStructured(finalEntry.id, null, markdown)
+    if (saved) finalEntry = saved
   } else if (!finalEntry && session.text) {
     finalEntry = upsertLookup({
       text: session.text,
