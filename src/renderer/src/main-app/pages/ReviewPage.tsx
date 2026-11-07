@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReviewCard } from '@shared/types'
 import { intervalPreview, isZhText, speak } from '../../utils'
 import { EntryImage } from '../components/EntryImage'
+import { EmText } from '../../components/EmText'
 
 type Phase = 'idle' | 'session' | 'done'
 
@@ -297,11 +298,17 @@ function ReviewSession({
                     {s.equivalents.slice(0, 4).map((eq, i) => (
                       <div key={i} className="text-center">
                         <div>
-                          <span className="text-[15px] font-semibold text-teal-300">{eq.en}</span>
+                          <span className="text-[15px] font-semibold text-teal-300">
+                            <EmText text={eq.en} boldClass="font-semibold" />
+                          </span>
                           {eq.phonetic && <span className="ml-2 text-xs text-zinc-500">{eq.phonetic}</span>}
                           {eq.pos && <span className="ml-1.5 text-xs text-teal-500">{eq.pos}</span>}
                         </div>
-                        {eq.note && <div className="text-xs text-zinc-400">{eq.note}</div>}
+                        {eq.note && (
+                          <div className="text-xs text-zinc-400">
+                            <EmText text={eq.note} boldClass="font-medium text-zinc-200" />
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -310,20 +317,26 @@ function ReviewSession({
                   <div className="text-center">
                     {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}
                     {s.pos && <span className="mr-1 font-medium text-teal-300">{s.pos}</span>}
-                    <span className="text-zinc-200">{s.definitionZh}</span>
+                    <span className="text-zinc-200">
+                      <EmText text={s.definitionZh ?? ''} />
+                    </span>
                   </div>
                 )}
                 {s.translation && (
                   <div className="select-text text-center text-[15px] text-zinc-200">
-                    {s.translation}
+                    <EmText text={s.translation} />
                   </div>
                 )}
                 {s.examples && s.examples.length > 0 && (
                   <div className="rounded-xl bg-zinc-800/60 px-4 py-3">
                     {s.examples.slice(0, 2).map((ex, i) => (
                       <div key={i} className="mb-1.5 last:mb-0">
-                        <div className="select-text text-[13px] text-zinc-300">{ex.en}</div>
-                        <div className="text-xs text-zinc-500">{ex.zh}</div>
+                        <div className="select-text text-[13px] text-zinc-300">
+                          <EmText text={ex.en} />
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          <EmText text={ex.zh} boldClass="font-medium" />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -332,8 +345,12 @@ function ReviewSession({
                   <div>
                     {s.keyPoints.slice(0, 4).map((k, i) => (
                       <div key={i} className="text-[13px] leading-6">
-                        <span className="font-medium text-teal-300">{k.term}</span>
-                        <span className="select-text text-zinc-400">：{k.explanation}</span>
+                        <span className="font-medium text-teal-300">
+                          <EmText text={k.term} boldClass="font-medium" />
+                        </span>
+                        <span className="select-text text-zinc-400">
+                          ：<EmText text={k.explanation} boldClass="font-medium text-zinc-200" />
+                        </span>
                       </div>
                     ))}
                   </div>

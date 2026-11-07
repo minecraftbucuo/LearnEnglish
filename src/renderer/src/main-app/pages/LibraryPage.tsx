@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { EntriesFilter, Entry, EntrySource, EntryType } from '@shared/types'
 import { fmtDateTime, isZhText, speak } from '../../utils'
 import { EntryImage } from '../components/EntryImage'
+import { EmText } from '../../components/EmText'
 
 type TypeFilter = EntryType | 'all'
 type SourceFilter = EntrySource | 'all'
@@ -209,11 +210,17 @@ function EntryDetail({
               {s.equivalents.map((eq, i) => (
                 <div key={i}>
                   <div className="text-[14px]">
-                    <span className="font-semibold text-teal-300">{eq.en}</span>
+                    <span className="font-semibold text-teal-300">
+                      <EmText text={eq.en} boldClass="font-semibold" />
+                    </span>
                     {eq.phonetic && <span className="ml-2 text-xs text-zinc-500">{eq.phonetic}</span>}
                     {eq.pos && <span className="ml-1.5 text-xs text-teal-500">{eq.pos}</span>}
                   </div>
-                  {eq.note && <div className="text-xs leading-5 text-zinc-400">{eq.note}</div>}
+                  {eq.note && (
+                    <div className="text-xs leading-5 text-zinc-400">
+                      <EmText text={eq.note} boldClass="font-medium text-zinc-200" />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -226,10 +233,16 @@ function EntryDetail({
               <div className="mb-1.5 text-sm text-zinc-200">
                 {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}
                 {s.pos && <span className="mr-1 font-medium text-teal-300">{s.pos}</span>}
-                <span>{s.definitionZh}</span>
+                <span>
+                  <EmText text={s.definitionZh ?? ''} />
+                </span>
               </div>
             )}
-            {s.translation && <div className="text-sm text-zinc-200">{s.translation}</div>}
+            {s.translation && (
+              <div className="text-sm text-zinc-200">
+                <EmText text={s.translation} />
+              </div>
+            )}
             {s.definitionEn && (
               <div className="mt-1 text-xs italic text-zinc-500">{s.definitionEn}</div>
             )}
@@ -242,8 +255,12 @@ function EntryDetail({
             <div className="space-y-2">
               {s.examples.map((ex, i) => (
                 <div key={i} className="text-[13px] leading-6">
-                  <div className="select-text text-zinc-200">{ex.en}</div>
-                  <div className="text-zinc-500">{ex.zh}</div>
+                  <div className="select-text text-zinc-200">
+                    <EmText text={ex.en} />
+                  </div>
+                  <div className="text-zinc-500">
+                    <EmText text={ex.zh} boldClass="font-medium" />
+                  </div>
                 </div>
               ))}
             </div>
@@ -256,8 +273,12 @@ function EntryDetail({
             <div className="space-y-1.5">
               {s.keyPoints.map((k, i) => (
                 <div key={i} className="text-[13px] leading-6">
-                  <span className="font-medium text-teal-300">{k.term}</span>
-                  <span className="select-text text-zinc-400">：{k.explanation}</span>
+                  <span className="font-medium text-teal-300">
+                    <EmText text={k.term} boldClass="font-medium" />
+                  </span>
+                  <span className="select-text text-zinc-400">
+                    ：<EmText text={k.explanation} boldClass="font-medium text-zinc-200" />
+                  </span>
                 </div>
               ))}
             </div>
@@ -267,7 +288,9 @@ function EntryDetail({
         {s?.grammar && (
           <div>
             <SectionTitle>语法结构</SectionTitle>
-            <div className="select-text text-[13px] leading-6 text-zinc-400">{s.grammar}</div>
+            <div className="select-text text-[13px] leading-6 text-zinc-400">
+              <EmText text={s.grammar} boldClass="font-medium text-zinc-200" />
+            </div>
           </div>
         )}
 
