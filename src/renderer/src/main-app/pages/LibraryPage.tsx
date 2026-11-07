@@ -276,6 +276,8 @@ function EntryDetail({
 
   const s = entry.structured
   const isZh = isZhText(entry.text)
+  // 中→英查询的释义都在 equivalents（完整讲解里），意思栏可能一项都没有，此时不渲染空壳
+  const hasMeaning = !!(s?.phonetic || s?.pos || s?.definitionZh || s?.translation || s?.definitionEn)
   return (
     <aside
       className="flex shrink-0 flex-col border-l border-zinc-800 bg-zinc-900"
@@ -367,7 +369,7 @@ function EntryDetail({
 
         {entry.source === 'image' && <EntryImage entryId={entry.id} />}
 
-        {s && (
+        {hasMeaning && (
           <div className="rounded-xl border border-zinc-800 bg-zinc-800/40 px-3.5 py-3">
             <div className="mb-1.5 text-sm text-zinc-200">
               {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}
