@@ -19,7 +19,7 @@ const PRESETS: {
   {
     name: '智谱 GLM',
     baseURL: 'https://open.bigmodel.cn/api/paas/v4',
-    chatModel: 'glm-4.5-flash',
+    chatModel: 'glm-5.2',
     visionModel: 'glm-4.5v'
   },
   {
@@ -32,20 +32,20 @@ const PRESETS: {
   {
     name: 'DeepSeek',
     baseURL: 'https://api.deepseek.com/v1',
-    chatModel: 'deepseek-chat',
+    chatModel: 'deepseek-flash',
     visionModel: ''
   },
   {
     name: 'Moonshot Kimi',
     baseURL: 'https://api.moonshot.cn/v1',
-    chatModel: 'kimi-k2-turbo-preview',
-    visionModel: ''
+    chatModel: 'kimi-k3.1-pro',
+    visionModel: 'kimi-k3.1-pro'
   },
   {
     name: 'OpenAI',
     baseURL: 'https://api.openai.com/v1',
-    chatModel: 'gpt-5-mini',
-    visionModel: 'gpt-5-mini'
+    chatModel: 'gpt-6-astra',
+    visionModel: 'gpt-6-astra'
   }
 ]
 

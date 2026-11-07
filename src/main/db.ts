@@ -508,7 +508,8 @@ export function deleteEntryChat(id: number): void {
 
 // ---------- 目标词程序化加粗 ----------
 
-/** 在例句里给目标词（含常见屈折变化）加粗；已加粗的先剥离再统一加粗，可重复点击 */
+/** 在例句里给目标词（含常见屈折变化）加粗；已加粗的先剥离再统一加粗，可重复点击。
+ *  内容无变化时不写库，避免 updated_at 变动打乱列表排序。 */
 export function boldEntryTargets(id: number): Entry | null {
   const entry = getEntryById(id)
   if (!entry?.structured?.examples || !entry.structured.examples.length) return entry
@@ -523,6 +524,8 @@ export function boldEntryTargets(id: number): Entry | null {
       en: ex.en.replace(/\*\*/g, '').replace(re, '**$1**')
     }))
   }
+  // 无实际变化则不落库
+  if (JSON.stringify(s) === JSON.stringify(entry.structured)) return entry
   return saveStructured(id, s)
 }
 
