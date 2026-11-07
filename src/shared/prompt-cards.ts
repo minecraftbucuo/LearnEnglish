@@ -53,6 +53,13 @@ export const DEFAULT_PROMPT_CARDS: Record<PromptKindKey, PromptCard[]> = {
       enabled: true
     },
     {
+      id: 'mnemonic',
+      title: '助记',
+      content:
+        '如果这个词有明确的词根或词缀，拆解说明它的构成（前缀/词根/后缀分别是什么意思），再举 2-3 个同词根的常见词，各配一句简短中文释义，达到记一个词连带记住一串的效果；没有明确词根的可省略此节。',
+      enabled: true
+    },
+    {
       id: 'extend',
       title: '拓展',
       content:
