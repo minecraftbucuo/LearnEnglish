@@ -71,19 +71,22 @@ export function SettingsPage(): React.JSX.Element {
 
   return (
     <div className="h-full overflow-y-auto px-6 py-5">
-      <div className="mb-5 flex items-center gap-3">
-        <h1 className="text-base font-semibold text-zinc-100">设置</h1>
-        {saved && (
-          <span className="rounded-full bg-teal-500/15 px-2 py-0.5 text-xs text-teal-300">
-            已保存 ✓
-          </span>
-        )}
-      </div>
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-4 flex items-center gap-3">
+          <h1 className="text-base font-semibold text-zinc-100">设置</h1>
+          {saved && (
+            <span className="rounded-full bg-teal-500/15 px-2 py-0.5 text-xs text-teal-300">
+              已保存 ✓
+            </span>
+          )}
+        </div>
 
-      <div className="max-w-3xl space-y-6">
+        {/* 自适应栅格：宽窗口双列铺满，窄窗口单列 */}
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         {/* AI 供应商 */}
         <Section
           title="AI 供应商"
+          span
           desc="任何 OpenAI 兼容 API 均可。文字查询用「对话模型」，截图查询用「视觉模型」（可留空则禁用截图查询）。"
         >
           <ProviderList
@@ -174,7 +177,8 @@ export function SettingsPage(): React.JSX.Element {
         </Section>
 
         {/* 提示词组装 */}
-        <PromptCardsSection settings={settings} save={save} />
+        <PromptCardsSection settings={settings} save={save} span />
+        </div>
       </div>
     </div>
   )
@@ -183,14 +187,20 @@ export function SettingsPage(): React.JSX.Element {
 function Section({
   title,
   desc,
+  span,
   children
 }: {
   title: string
   desc?: string
+  span?: boolean
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/30">
+    <section
+      className={`rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/30 ${
+        span ? 'lg:col-span-2' : ''
+      }`}
+    >
       <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>
       {desc && <p className="mb-3 mt-1 text-xs leading-5 text-zinc-500">{desc}</p>}
       <div className={desc ? '' : 'mt-3'}>{children}</div>
@@ -480,10 +490,12 @@ function HotkeyInput({
 
 function PromptCardsSection({
   settings,
-  save
+  save,
+  span
 }: {
   settings: AppSettings
   save: (patch: Partial<AppSettings>) => Promise<void>
+  span?: boolean
 }): React.JSX.Element {
   const [kind, setKind] = useState<PromptKindKey>('word')
   // 文本输入先改本地草稿、失焦才落库，避免每个键都写盘/广播导致卡顿丢字
@@ -531,6 +543,7 @@ function PromptCardsSection({
   return (
     <Section
       title="提示词组装"
+      span={span}
       desc="勾选要包含的要求卡，内容用大白话写即可，程序会自动排版成完整提示词并附加输出格式约定，随便改不会弄坏划重点和复习功能。"
     >
       {/* 类型标签页 */}

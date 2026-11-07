@@ -42,6 +42,7 @@ export default function App(): React.JSX.Element {
       if (!draggingRef.current) return
       draggingRef.current = false
       document.body.style.cursor = ''
+      document.body.style.userSelect = ''
       localStorage.setItem('le_sidebar_width', String(widthRef.current))
     }
     window.addEventListener('mousemove', onMove)
@@ -89,11 +90,12 @@ export default function App(): React.JSX.Element {
 
       {/* 拖拽分隔条 */}
       <div
-        className="w-1 shrink-0 cursor-col-resize bg-transparent transition-colors hover:bg-teal-500/40"
+        className="w-1.5 shrink-0 cursor-col-resize bg-zinc-800/60 transition-colors hover:bg-teal-500/60"
         onMouseDown={(e) => {
           e.preventDefault()
           draggingRef.current = true
           document.body.style.cursor = 'col-resize'
+          document.body.style.userSelect = 'none'
         }}
       />
 
