@@ -81,12 +81,11 @@ export function SettingsPage(): React.JSX.Element {
           )}
         </div>
 
-        {/* 自适应栅格：宽窗口双列铺满，窄窗口单列 */}
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        {/* 自适应瀑布流：宽窗口双栏均衡填充，窄窗口单列 */}
+        <div className="mx-auto max-w-6xl md:columns-2 md:gap-4">
         {/* AI 供应商 */}
         <Section
           title="AI 供应商"
-          span
           desc="任何 OpenAI 兼容 API 均可。文字查询用「对话模型」，截图查询用「视觉模型」（可留空则禁用截图查询）。"
         >
           <ProviderList
@@ -177,7 +176,7 @@ export function SettingsPage(): React.JSX.Element {
         </Section>
 
         {/* 提示词组装 */}
-        <PromptCardsSection settings={settings} save={save} span />
+        <PromptCardsSection settings={settings} save={save} />
         </div>
       </div>
     </div>
@@ -187,20 +186,14 @@ export function SettingsPage(): React.JSX.Element {
 function Section({
   title,
   desc,
-  span,
   children
 }: {
   title: string
   desc?: string
-  span?: boolean
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section
-      className={`rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/30 ${
-        span ? 'lg:col-span-2' : ''
-      }`}
-    >
+    <section className="mb-4 break-inside-avoid rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-sm shadow-black/30">
       <h2 className="text-sm font-semibold text-zinc-100">{title}</h2>
       {desc && <p className="mb-3 mt-1 text-xs leading-5 text-zinc-500">{desc}</p>}
       <div className={desc ? '' : 'mt-3'}>{children}</div>
@@ -490,12 +483,10 @@ function HotkeyInput({
 
 function PromptCardsSection({
   settings,
-  save,
-  span
+  save
 }: {
   settings: AppSettings
   save: (patch: Partial<AppSettings>) => Promise<void>
-  span?: boolean
 }): React.JSX.Element {
   const [kind, setKind] = useState<PromptKindKey>('word')
   // 文本输入先改本地草稿、失焦才落库，避免每个键都写盘/广播导致卡顿丢字
@@ -543,7 +534,6 @@ function PromptCardsSection({
   return (
     <Section
       title="提示词组装"
-      span={span}
       desc="勾选要包含的要求卡，内容用大白话写即可，程序会自动排版成完整提示词并附加输出格式约定，随便改不会弄坏划重点和复习功能。"
     >
       {/* 类型标签页 */}
