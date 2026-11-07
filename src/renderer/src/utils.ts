@@ -1,9 +1,10 @@
 import type { ReviewState, StructuredData } from '@shared/types'
 import { schedule } from '@shared/srs'
+import { isZhContent } from '@shared/text'
 
 /** 文本是否为中文（决定查词方向与朗读可用性） */
 export function isZhText(text: string): boolean {
-  return /[\u4e00-\u9fff]/.test(text)
+  return isZhContent(text)
 }
 
 /** 系统英文朗读 */

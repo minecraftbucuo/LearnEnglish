@@ -18,11 +18,11 @@ import { streamChat, type ChatMessage } from './ai'
 import {
   buildLookupMessages,
   extractAiData,
-  isChinese,
   isSingleWord,
   isZhShort,
   type LookupKind
 } from './prompts'
+import { isZhContent } from '@shared/text'
 import { findEntryByText, getEntryById, saveStructured, setStarred, upsertLookup } from './db'
 import {
   getOverlayWindow,
@@ -180,7 +180,7 @@ function createSession(p: {
 
   const kind: LookupKind = p.source === 'image'
     ? 'image'
-    : isChinese(p.text)
+    : isZhContent(p.text)
       ? (isZhShort(p.text) ? 'zh_word' : 'zh_sentence')
       : isSingleWord(p.text)
         ? 'word'
