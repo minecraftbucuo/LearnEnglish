@@ -1,6 +1,7 @@
 // 查询流程编排：快捷键触发 → 抓取选中文本/接收截图 → 弹窗 → AI 流式讲解 → 持久化
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { app, BrowserWindow, screen } from 'electron'
 import { CH } from '@shared/channels'
@@ -12,7 +13,14 @@ import { streamChat, type ChatMessage } from './ai'
 import { buildLookupMessages, extractAiData, isSingleWord, isZhShort } from './prompts'
 import type { LookupKind } from './prompt-kinds'
 import { isZhContent } from '@shared/text'
-import { findEntryByText, getEntryById, saveStructured, setStarred, upsertLookup } from './db'
+import {
+  findEntryByText,
+  getEntryById,
+  incrementLookupCount,
+  saveStructured,
+  setStarred,
+  upsertLookup
+} from './db'
 import {
   getOverlayWindow,
   getPopupWindow,
@@ -287,7 +295,7 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
   } catch (err) {
     session.streaming = false
     if (err instanceof Error && err.name === 'AbortError') {
-      finishStream(session, full, isInitial)
+      finishStream(session, full, isInitial, force)
       return
     }
     popupSend(CH.AI_ERROR, {
@@ -300,16 +308,22 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
   console.log(
     `[ai] 完成 总耗时 ${Date.now() - t0}ms 输出 ${full.length} 字符 (${provider.name}/${model})`
   )
-  finishStream(session, full, isInitial)
+  finishStream(session, full, isInitial, force)
 }
 
-function finishStream(session: LookupSession, full: string, isInitial: boolean): void {
+function finishStream(
+  session: LookupSession,
+  full: string,
+  isInitial: boolean,
+  regenerate = false
+): void {
   const { markdown, data } = extractAiData(full)
   let structured: StructuredData | null = sanitizeStructured(data)
   // 追问轮次一般没有 AI_DATA；保留旧的结构化数据
   if (!data && session.messages.length > 2) structured = null
 
-  let finalEntry = session.entryId ? getEntryById(session.entryId) : null
+  const preExisting = session.entryId ? getEntryById(session.entryId) : null
+  let finalEntry = preExisting
   if (structured && markdown) {
     // 截图查询：用转录原文回填 text
     if (session.source === 'image' && structured.sourceText && !session.text) {
@@ -348,6 +362,11 @@ function finishStream(session: LookupSession, full: string, isInitial: boolean):
   // 记入会话历史（供追问）
   if (session.messages.length > 0 && markdown) {
     session.messages.push({ role: 'assistant', content: markdown })
+  }
+
+  // 重新生成也是一次真实查询：+1（本流内新建的词条已由 upsertLookup 计过）
+  if (regenerate && preExisting && finalEntry) {
+    finalEntry = incrementLookupCount(finalEntry.id) ?? finalEntry
   }
 
   const payload: AiDonePayload = {
@@ -405,6 +424,103 @@ export function lookupTextFromRenderer(text: string): void {
 
 export function unstarEntry(entryId: number): void {
   setStarred(entryId, false)
+}
+
+// ---------- 生词本重新查询 ----------
+
+// 进行中的重新查询流（relookupId → 状态），增量推送到主窗口
+const relookupStreams = new Map<string, { controller: AbortController; sender: Electron.WebContents }>()
+
+function relookupSend(sender: Electron.WebContents, channel: string, payload: unknown): void {
+  if (!sender.isDestroyed()) sender.send(channel, payload)
+}
+
+/** 生词本详情「重新查询」：按词条内容重建提示词，流式回主窗口，完成后覆盖讲解缓存 */
+export async function relookupEntry(
+  entryId: number,
+  relookupId: string,
+  sender: Electron.WebContents
+): Promise<void> {
+  const entry = getEntryById(entryId)
+  if (!entry) {
+    relookupSend(sender, CH.ENTRY_RELOOKUP_ERROR, { relookupId, message: '词条不存在' })
+    return
+  }
+  const provider = getActiveProvider()
+  if (!provider) {
+    relookupSend(sender, CH.ENTRY_RELOOKUP_ERROR, {
+      relookupId,
+      message: '尚未配置 AI 供应商，请打开设置页配置。'
+    })
+    return
+  }
+
+  // 重建查询类型：截图词条带原图重查，其余按词条语言与类型
+  let kind: LookupKind
+  let imageDataUrl: string | null = null
+  if (entry.source === 'image' && entry.imagePath) {
+    try {
+      const buf = await readFile(entry.imagePath)
+      imageDataUrl = `data:image/png;base64,${buf.toString('base64')}`
+      kind = 'image'
+    } catch {
+      relookupSend(sender, CH.ENTRY_RELOOKUP_ERROR, {
+        relookupId,
+        message: '截图文件缺失，无法重新查询。'
+      })
+      return
+    }
+  } else {
+    const zh = isZhContent(entry.text)
+    kind = entry.type === 'word' ? (zh ? 'zh_word' : 'word') : zh ? 'zh_sentence' : 'sentence'
+  }
+
+  const settings = getSettings()
+  const model = kind === 'image' ? (provider.visionModel || provider.chatModel) : provider.chatModel
+  const controller = new AbortController()
+  relookupStreams.set(relookupId, { controller, sender })
+  let full = ''
+  try {
+    for await (const delta of streamChat({
+      provider,
+      model,
+      messages: buildLookupMessages(kind, entry.text, imageDataUrl, settings.promptCards),
+      signal: controller.signal
+    })) {
+      full += delta
+      relookupSend(sender, CH.ENTRY_RELOOKUP_CHUNK, { relookupId, delta })
+    }
+  } catch (err) {
+    relookupSend(sender, CH.ENTRY_RELOOKUP_ERROR, {
+      relookupId,
+      message:
+        err instanceof Error && err.name === 'AbortError'
+          ? '已取消'
+          : err instanceof Error
+            ? err.message
+            : String(err)
+    })
+    return
+  } finally {
+    relookupStreams.delete(relookupId)
+  }
+
+  const { markdown, data } = extractAiData(full)
+  const saved = saveStructured(entryId, sanitizeStructured(data), markdown)
+  if (!saved) {
+    relookupSend(sender, CH.ENTRY_RELOOKUP_ERROR, { relookupId, message: '词条已被删除' })
+    return
+  }
+  // 重查就是一次真实查询：讲解覆盖为最新结果，查词次数 +1
+  relookupSend(sender, CH.ENTRY_RELOOKUP_DONE, {
+    relookupId,
+    entry: incrementLookupCount(saved.id) ?? saved,
+    markdown
+  })
+}
+
+export function abortRelookup(relookupId: string): void {
+  relookupStreams.get(relookupId)?.controller.abort()
 }
 
 function sanitizeStructured(data: Record<string, unknown> | null): StructuredData | null {

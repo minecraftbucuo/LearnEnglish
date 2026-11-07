@@ -187,12 +187,24 @@ function EntryDetail({
     answer: string
     error: string | null
   } | null>(null)
+  const [relookup, setRelookup] = useState<{
+    relookupId: string
+    answer: string
+    error: string | null
+    done: boolean
+  } | null>(null)
   const entryIdRef = useRef(entry.id)
+  const onChangedRef = useRef(onChanged)
+
+  useEffect(() => {
+    onChangedRef.current = onChanged
+  })
 
   useEffect(() => {
     void window.api.entryChatList(entry.id).then(setChats)
     entryIdRef.current = entry.id
     setPending(null) // 切换词条：进行中的流继续在后台完成并存库
+    setRelookup(null)
   }, [entry.id])
 
   useEffect(() => {
@@ -209,6 +221,23 @@ function EntryDetail({
       }),
       window.api.onChatError(({ chatId, message }) => {
         setPending((p) => (p && p.chatId === chatId ? { ...p, error: message } : p))
+      }),
+      window.api.onRelookupChunk(({ relookupId, delta }) => {
+        setRelookup((r) =>
+          r && r.relookupId === relookupId ? { ...r, answer: r.answer + delta } : r
+        )
+      }),
+      window.api.onRelookupDone(({ relookupId, entry: updated, markdown }) => {
+        setRelookup((r) =>
+          r && r.relookupId === relookupId ? { ...r, answer: markdown, done: true } : r
+        )
+        // 只就地刷新当前查看的词条；截图合并等场景 id 已变，切回时自然加载
+        if (updated.id === entryIdRef.current) void onChangedRef.current()
+      }),
+      window.api.onRelookupError(({ relookupId, message }) => {
+        setRelookup((r) =>
+          r && r.relookupId === relookupId ? { ...r, error: message } : r
+        )
       })
     ]
     return () => offs.forEach((f) => f())
@@ -244,6 +273,13 @@ function EntryDetail({
     await window.api.entryBoldTargets(entry.id)
     await onChanged()
   }
+  /** 重新调用 AI 查询：流式显示在下方卡片，完成后覆盖讲解缓存并刷新词条 */
+  async function requery(): Promise<void> {
+    if (relookup && !relookup.done && !relookup.error) return
+    const relookupId = crypto.randomUUID()
+    setRelookup({ relookupId, answer: '', error: null, done: false })
+    await window.api.entryRelookup(entry.id, relookupId)
+  }
 
   const s = entry.structured
   const isZh = isZhText(entry.text)
@@ -261,6 +297,12 @@ function EntryDetail({
           {entry.isStarred ? '⭐ 已划重点' : '☆ 划入重点'}
         </MiniAction>
         {!isZh && <MiniAction onClick={() => speak(entry.text)}>🔊 朗读</MiniAction>}
+        <MiniAction
+          onClick={() => void requery()}
+          title="重新调用 AI 查询，更新讲解内容"
+        >
+          {relookup && !relookup.done && !relookup.error ? '⏳ 查询中…' : '🔄 重新查询'}
+        </MiniAction>
         <div className="flex-1" />
         <MiniAction onClick={() => void toggleSuspend()} title="暂停后不进入复习队列">
           {entry.suspended ? '▶️ 恢复复习' : '⏸ 暂停'}
@@ -293,6 +335,46 @@ function EntryDetail({
           <div className="rounded-lg bg-zinc-800/60 px-3 py-2 text-xs text-zinc-400">
             复习：已答 {entry.review.reps} 次 · 遗忘 {entry.review.lapses} 次 · 熟练度{' '}
             {entry.review.ease.toFixed(2)}
+          </div>
+        )}
+
+        {relookup && (
+          <div className="rounded-xl border border-teal-500/25 bg-zinc-900/60 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-teal-300">
+                {relookup.error
+                  ? '⚠️ 重新查询失败'
+                  : relookup.done
+                    ? '🔄 最新 AI 讲解'
+                    : '🔄 重新查询中…'}
+              </span>
+              <div className="flex-1" />
+              <button
+                title={relookup.done || relookup.error ? '收起' : '取消'}
+                onClick={() => {
+                  if (!relookup.done && !relookup.error) {
+                    void window.api.entryRelookupAbort(relookup.relookupId)
+                  }
+                  setRelookup(null)
+                }}
+                className="shrink-0 text-zinc-600 transition hover:text-zinc-300"
+              >
+                ✕
+              </button>
+            </div>
+            {relookup.error ? (
+              <div className="mt-1 text-[11px] leading-5 text-red-300">{relookup.error}</div>
+            ) : relookup.answer ? (
+              <div className="mt-1 select-text">
+                <Md>{relookup.answer}</Md>
+                {!relookup.done && <span className="stream-cursor text-teal-400" />}
+              </div>
+            ) : (
+              <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400" />
+                思考中…
+              </div>
+            )}
           </div>
         )}
 

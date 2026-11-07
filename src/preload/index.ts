@@ -40,6 +40,12 @@ const api: Api = {
   onChatChunk: (cb) => subscribe(CH.ENTRY_CHAT_CHUNK, cb as never),
   onChatDone: (cb) => subscribe(CH.ENTRY_CHAT_DONE, cb as never),
   onChatError: (cb) => subscribe(CH.ENTRY_CHAT_ERROR, cb as never),
+  entryRelookup: (entryId, relookupId) =>
+    ipcRenderer.invoke(CH.ENTRY_RELOOKUP, entryId, relookupId),
+  entryRelookupAbort: (relookupId) => ipcRenderer.invoke(CH.ENTRY_RELOOKUP_ABORT, relookupId),
+  onRelookupChunk: (cb) => subscribe(CH.ENTRY_RELOOKUP_CHUNK, cb as never),
+  onRelookupDone: (cb) => subscribe(CH.ENTRY_RELOOKUP_DONE, cb as never),
+  onRelookupError: (cb) => subscribe(CH.ENTRY_RELOOKUP_ERROR, cb as never),
 
   reviewQueue: () => ipcRenderer.invoke(CH.REVIEW_QUEUE),
   freeQueue: () => ipcRenderer.invoke(CH.REVIEW_FREE_QUEUE),

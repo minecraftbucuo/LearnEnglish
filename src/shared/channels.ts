@@ -32,6 +32,11 @@ export const CH = {
   ENTRY_CHAT_ABORT: 'entry:chatAbort',
   ENTRY_CHAT_LIST: 'entry:chatList',
   ENTRY_CHAT_DELETE: 'entry:chatDelete',
+  ENTRY_RELOOKUP: 'entry:relookup', // 生词本详情：重新调用 AI 查询（流式回主窗口）
+  ENTRY_RELOOKUP_CHUNK: 'entry:relookupChunk',
+  ENTRY_RELOOKUP_DONE: 'entry:relookupDone',
+  ENTRY_RELOOKUP_ERROR: 'entry:relookupError',
+  ENTRY_RELOOKUP_ABORT: 'entry:relookupAbort',
   REVIEW_QUEUE: 'review:queue',
   REVIEW_FREE_QUEUE: 'review:freeQueue',
   REVIEW_ANSWER: 'review:answer',

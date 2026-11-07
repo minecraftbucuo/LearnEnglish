@@ -51,6 +51,21 @@ export interface NestedLookupResult {
   noProvider: boolean
 }
 
+/** 生词本详情重新查询：事件负载 */
+export interface RelookupChunkPayload {
+  relookupId: string
+  delta: string
+}
+export interface RelookupDonePayload {
+  relookupId: string
+  entry: Entry // 已保存的词条（截图合并时 id 可能变化）
+  markdown: string // 最终正文
+}
+export interface RelookupErrorPayload {
+  relookupId: string
+  message: string
+}
+
 type Unsubscribe = () => void
 
 export interface Api {
@@ -87,6 +102,11 @@ export interface Api {
   onChatChunk(cb: (p: { chatId: string; delta: string }) => void): Unsubscribe
   onChatDone(cb: (p: { chatId: string; chat: EntryChat }) => void): Unsubscribe
   onChatError(cb: (p: { chatId: string; message: string }) => void): Unsubscribe
+  entryRelookup(entryId: number, relookupId: string): Promise<void>
+  entryRelookupAbort(relookupId: string): Promise<void>
+  onRelookupChunk(cb: (p: RelookupChunkPayload) => void): Unsubscribe
+  onRelookupDone(cb: (p: RelookupDonePayload) => void): Unsubscribe
+  onRelookupError(cb: (p: RelookupErrorPayload) => void): Unsubscribe
 
   // ---- 复习 ----
   reviewQueue(): Promise<ReviewQueue>

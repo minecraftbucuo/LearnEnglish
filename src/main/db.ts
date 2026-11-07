@@ -245,6 +245,12 @@ export function saveStructured(
   return getEntryById(id)
 }
 
+/** 重新查询成功后补计一次查词次数（首次查询已由 upsertLookup 计过） */
+export function incrementLookupCount(id: number): Entry | null {
+  db.prepare('UPDATE entries SET lookup_count = lookup_count + 1 WHERE id = ?').run(id)
+  return getEntryById(id)
+}
+
 /** 把 srcId 的复习状态/日志迁移到 targetId 后删除 src（截图查询合并用） */
 function mergeEntryInto(srcId: number, targetId: number): void {
   const src = db.prepare('SELECT * FROM review_state WHERE entry_id = ?').get(srcId) as

@@ -38,11 +38,13 @@ import { registerShortcuts } from './shortcuts'
 import { broadcast, hidePopup, setQuitting, showMainWindow } from './windows'
 import {
   abortAi,
+  abortRelookup,
   cancelScreenshot,
   confirmScreenshot,
   createNestedLookup,
   followUp,
   lookupTextFromRenderer,
+  relookupEntry,
   runAi,
   starCurrent
 } from './lookup'
@@ -136,6 +138,12 @@ export function registerIpc(): void {
   })
   ipcMain.handle(CH.ENTRY_CHAT_LIST, (_e, entryId: number) => listEntryChats(entryId))
   ipcMain.handle(CH.ENTRY_CHAT_DELETE, (_e, id: number) => deleteEntryChat(id))
+
+  // ---- 重新查询（生词本详情，流式推送回主窗口） ----
+  ipcMain.handle(CH.ENTRY_RELOOKUP, (e, entryId: number, relookupId: string) =>
+    relookupEntry(entryId, relookupId, e.sender)
+  )
+  ipcMain.handle(CH.ENTRY_RELOOKUP_ABORT, (_e, relookupId: string) => abortRelookup(relookupId))
 
   // ---- 复习 ----
   ipcMain.handle(CH.REVIEW_QUEUE, () => getReviewQueue(getSettings().dailyNew))
