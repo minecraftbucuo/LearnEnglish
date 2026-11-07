@@ -11,7 +11,8 @@ import type {
   ReviewMode,
   ReviewQueue,
   ReviewState,
-  ReviewStats
+  ReviewStats,
+  ScreenCapturePayload
 } from './types'
 
 export interface AiChunkPayload {
@@ -24,8 +25,8 @@ export interface AiErrorPayload {
   message: string
 }
 
-export interface OverlayStartPayload {
-  imageDataUrl: string
+export interface LookupFailedPayload {
+  lookupId: string
 }
 
 type Unsubscribe = () => void
@@ -33,7 +34,8 @@ type Unsubscribe = () => void
 export interface Api {
   // ---- 事件订阅 ----
   onLookupStart(cb: (p: LookupStartPayload) => void): Unsubscribe
-  onOverlayStart(cb: (p: OverlayStartPayload) => void): Unsubscribe
+  onLookupFailed(cb: (p: LookupFailedPayload) => void): Unsubscribe
+  onOverlayStart(cb: (p: ScreenCapturePayload) => void): Unsubscribe
   onAiChunk(cb: (p: AiChunkPayload) => void): Unsubscribe
   onAiDone(cb: (p: AiDonePayload) => void): Unsubscribe
   onAiError(cb: (p: AiErrorPayload) => void): Unsubscribe

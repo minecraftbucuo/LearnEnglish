@@ -148,7 +148,10 @@ export function createOverlayWindow(): BrowserWindow {
   return overlayWindow
 }
 
-export async function showOverlay(display: Electron.Display, imageDataUrl: string): Promise<void> {
+export async function showOverlay(
+  display: Electron.Display,
+  payload: unknown
+): Promise<void> {
   if (!overlayWindow || overlayWindow.isDestroyed()) createOverlayWindow()
   const win = overlayWindow!
   if (win.isVisible()) return
@@ -165,7 +168,7 @@ export async function showOverlay(display: Electron.Display, imageDataUrl: strin
     })
   }
   win.setBounds(display.bounds)
-  win.webContents.send(CH.OVERLAY_START, { imageDataUrl })
+  win.webContents.send(CH.OVERLAY_START, payload)
   win.show()
   win.focus()
 }

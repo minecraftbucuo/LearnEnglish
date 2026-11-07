@@ -1,24 +1,29 @@
-// 选中文本捕获：koffi 调 user32.SendInput 模拟 Ctrl+C，读取剪贴板后还原。
-// koffi 加载失败时回退到 PowerShell SendKeys 方案（较慢，会打日志）。
-import { clipboard, BrowserWindow } from 'electron'
+// 选中文本捕获（v2）：
+// 1. 注入前先合成"松开 Alt/Shift/Win"，避免快捷键修饰键污染 Ctrl+C（Alt+Q 按住时注入会变成 Ctrl+Alt+C）
+// 2. 用 GetClipboardSequenceNumber 检测复制是否真的发生——不清空剪贴板、无需还原、不误读旧内容
+import { clipboard } from 'electron'
 import { spawn } from 'node:child_process'
 import koffi from 'koffi'
-import { getPopupWindow } from './windows'
 
+const VK_SHIFT = 0x10
 const VK_CONTROL = 0x11
+const VK_MENU = 0x12 // Alt
+const VK_LWIN = 0x5b
+const VK_RWIN = 0x5c
 const VK_C = 0x43
 const KEYEVENTF_KEYUP = 0x0002
-// x64 下 sizeof(INPUT) = 40（type 4 + padding 4 + union 32）
-const INPUT_SIZE = 40
+const INPUT_SIZE = 40 // x64 sizeof(INPUT)
 
 type SendInputFn = (count: number, inputs: Buffer, size: number) => number
 
 let sendInput: SendInputFn | null = null
+let getClipboardSeq: (() => number) | null = null
 try {
   const user32 = koffi.load('user32.dll')
   sendInput = user32.func(
     'uint32 __stdcall SendInput(uint32 count, void *inputs, int32 size)'
   ) as SendInputFn
+  getClipboardSeq = user32.func('uint32 __stdcall GetClipboardSequenceNumber()') as () => number
   console.log('[capture] SendInput via koffi 已就绪')
 } catch (err) {
   console.error('[capture] koffi 加载失败，将回退 PowerShell（较慢）:', err)
@@ -32,16 +37,31 @@ function keybdEvent(buf: Buffer, offset: number, vk: number, flags: number): voi
   buf.writeUInt32LE(0, offset + 16) // time
 }
 
-/** 通过 SendInput 发送 Ctrl+C（4 个事件：Ctrl↓ C↓ C↑ Ctrl↑） */
-function pressCtrlCSendInput(): boolean {
+/**
+ * 一次 SendInput 批量注入：Shift↑ Alt↑ Win↑ Win↑ Ctrl↓ C↓ C↑ Ctrl↑
+ * 先抬起修饰键，保证目标应用收到的是纯粹的 Ctrl+C
+ */
+function pressCtrlC(): boolean {
   if (!sendInput) return false
   try {
-    const buf = Buffer.alloc(INPUT_SIZE * 4)
-    keybdEvent(buf, 0, VK_CONTROL, 0)
-    keybdEvent(buf, 40, VK_C, 0)
-    keybdEvent(buf, 80, VK_C, KEYEVENTF_KEYUP)
-    keybdEvent(buf, 120, VK_CONTROL, KEYEVENTF_KEYUP)
-    return sendInput(4, buf, INPUT_SIZE) === 4
+    const events: [number, number][] = [
+      [VK_SHIFT, KEYEVENTF_KEYUP],
+      [VK_MENU, KEYEVENTF_KEYUP],
+      [VK_LWIN, KEYEVENTF_KEYUP],
+      [VK_RWIN, KEYEVENTF_KEYUP],
+      [VK_CONTROL, 0],
+      [VK_C, 0],
+      [VK_C, KEYEVENTF_KEYUP],
+      [VK_CONTROL, KEYEVENTF_KEYUP]
+    ]
+    const buf = Buffer.alloc(INPUT_SIZE * events.length)
+    events.forEach(([vk, flags], i) => keybdEvent(buf, i * INPUT_SIZE, vk, flags))
+    const ret = sendInput(events.length, buf, INPUT_SIZE)
+    if (ret !== events.length) {
+      console.warn(`[capture] SendInput 返回 ${ret}/${events.length}（可能被 UIPI 拦截，目标窗口是管理员权限？）`)
+      return false
+    }
+    return true
   } catch (err) {
     console.error('[capture] SendInput 调用失败:', err)
     return false
@@ -68,48 +88,34 @@ export interface CaptureResult {
 
 /**
  * 抓取当前前台应用中选中的文本。
- * 流程：隐藏自家弹窗 → 保存并清空剪贴板 → 模拟 Ctrl+C → 快速轮询 → 还原剪贴板。
- * 关键防呆：读到的文本必须与旧剪贴板内容不同，否则视为复制未生效（避免把历史复制内容当成选中文本）。
+ * 通过剪贴板序列号判断复制是否生效：序列号没变 = 复制失败（没选中/被拦截），绝不误读旧内容。
  */
 export async function captureSelectedText(): Promise<CaptureResult> {
   const t0 = Date.now()
-  // 若我们自己的窗口正持有焦点，先隐藏弹窗让焦点回到目标应用
-  const focused = BrowserWindow.getFocusedWindow()
-  if (focused && focused === getPopupWindow()) {
-    focused.hide()
-  }
+  const seq0 = getClipboardSeq ? getClipboardSeq() : -1
 
-  const savedText = clipboard.readText()
-  const savedImage = clipboard.readImage()
-  const savedTextTrimmed = savedText.trim()
-
-  clipboard.writeText('') // 清空以便检测复制是否成功
-  if (!(sendInput && pressCtrlCSendInput())) pressCtrlCPowerShell()
+  const injected = pressCtrlC()
+  if (!injected) pressCtrlCPowerShell()
 
   let text = ''
-  const deadline = Date.now() + 450
+  let copied = false
+  const deadline = Date.now() + 600
   while (Date.now() < deadline) {
-    await sleep(25)
-    const current = clipboard.readText().trim()
-    // 与旧内容相同 = 剪贴板管理器还原/复制未生效，不算抓到
-    if (current && current !== savedTextTrimmed) {
-      text = current
-      break
+    await sleep(20)
+    if (getClipboardSeq) {
+      if (getClipboardSeq() === seq0) continue // 剪贴板没变 = 复制还没发生
+      copied = true
+      await sleep(15) // 等应用写完剪贴板
+    } else {
+      copied = true // 无序列号可用（理论不会发生），退化为盲读
     }
-  }
-
-  // 还原剪贴板（文本优先；仅有图片时还原图片）
-  if (savedTextTrimmed) {
-    clipboard.writeText(savedText)
-  } else if (!savedImage.isEmpty()) {
-    clipboard.writeImage(savedImage)
-  } else {
-    clipboard.clear()
+    text = clipboard.readText().trim()
+    break
   }
 
   console.log(
-    `[capture] ok=${!!text} elapsed=${Date.now() - t0}ms len=${text.length}` +
-      (savedTextTrimmed ? ' (已有剪贴板内容，已做比对)' : '')
+    `[capture] ok=${!!text} copied=${copied} elapsed=${Date.now() - t0}ms len=${text.length}` +
+      (copied && !text ? '（剪贴板更新了但不是文本）' : '')
   )
   return { ok: text.length > 0, text }
 }

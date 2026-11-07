@@ -10,6 +10,7 @@ function subscribe(channel: string, cb: (...args: unknown[]) => void): () => voi
 
 const api: Api = {
   onLookupStart: (cb) => subscribe(CH.LOOKUP_START, cb as never),
+  onLookupFailed: (cb) => subscribe(CH.LOOKUP_FAILED, cb as never),
   onOverlayStart: (cb) => subscribe(CH.OVERLAY_START, cb as never),
   onAiChunk: (cb) => subscribe(CH.AI_CHUNK, cb as never),
   onAiDone: (cb) => subscribe(CH.AI_DONE, cb as never),

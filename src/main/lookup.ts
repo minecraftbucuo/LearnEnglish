@@ -13,7 +13,7 @@ import type {
 } from '@shared/types'
 import { getActiveProvider, getSettings } from './settings'
 import { captureSelectedText } from './capture'
-import { captureDisplayImage, type ScreenCapture } from './screenshot'
+import { captureDisplayImage } from './screenshot'
 import { streamChat, type ChatMessage } from './ai'
 import { buildLookupMessages, extractAiData, isSingleWord, type LookupKind } from './prompts'
 import { findEntryByText, getEntryById, saveStructured, setStarred, upsertLookup } from './db'
@@ -41,20 +41,40 @@ function popupSend(channel: string, payload: unknown): void {
 
 // ---------- 触发入口 ----------
 
-/** Alt+Q：抓取选中文本并查词 */
+/** Alt+Q：抓取选中文本并查词（弹窗立即出现，抓取完成后填充内容） */
 export async function triggerLookup(): Promise<void> {
+  const settings = getSettings()
+  const noProvider = !settings.providers.length || !settings.activeProviderId
+  const preId = randomUUID()
+
+  // 先弹窗占位，消除感知延迟
+  showPopupNearCursor()
+  popupSend(CH.LOOKUP_START, {
+    lookupId: preId,
+    text: '',
+    source: 'selection',
+    imagePath: null,
+    imageDataUrl: null,
+    entryId: null,
+    isStarred: false,
+    hasStructured: false,
+    noProvider,
+    capturing: true
+  })
+
   const cap = await captureSelectedText()
-  if (!cap.ok) return // 未选中文本/复制未生效，静默忽略
+  if (!cap.ok) {
+    popupSend(CH.LOOKUP_FAILED, { lookupId: preId })
+    return
+  }
   startLookup({ text: cap.text, source: 'selection' })
 }
-
-let lastCapture: ScreenCapture | null = null
 
 /** Alt+X：截屏并打开框选覆盖层 */
 export async function triggerScreenshot(): Promise<void> {
   try {
-    lastCapture = await captureDisplayImage()
-    await showOverlay(lastCapture.display, lastCapture.dataUrl)
+    const { payload, display } = await captureDisplayImage()
+    await showOverlay(display, payload)
   } catch (err) {
     console.error('[lookup] screenshot failed:', err)
   }

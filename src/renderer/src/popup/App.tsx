@@ -16,6 +16,7 @@ export default function App(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [starred, setStarred] = useState(false)
   const [input, setInput] = useState('')
+  const [capturing, setCapturing] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
   const lookupIdRef = useRef<string | null>(null)
 
@@ -27,6 +28,14 @@ export default function App(): React.JSX.Element {
         setError(null)
         setStarred(p.isStarred)
         setInput('')
+        if (p.capturing) {
+          // 抓取占位状态
+          setCapturing(true)
+          setBubbles([])
+          setStreaming(false)
+          return
+        }
+        setCapturing(false)
         setBubbles(
           p.noProvider ? [] : [{ role: 'user', content: p.source === 'image' ? '🖼️ 截图查询' : p.text }]
         )
@@ -36,6 +45,12 @@ export default function App(): React.JSX.Element {
           setStreaming(true)
           void window.api.aiStart(p.lookupId)
         }
+      }),
+      window.api.onLookupFailed(({ lookupId }) => {
+        if (lookupId !== lookupIdRef.current) return
+        setCapturing(false)
+        setStreaming(false)
+        setError('未捕获到选中文本。请先在目标应用里选中内容，并确保它处于前台（管理员权限的窗口会拦截模拟按键）。')
       }),
       window.api.onAiChunk(({ lookupId, delta }: AiChunkPayload) => {
         if (lookupId !== lookupIdRef.current) return
@@ -211,6 +226,13 @@ export default function App(): React.JSX.Element {
               {streaming && i === bubbles.length - 1 && <span className="stream-cursor text-teal-400" />}
             </div>
           )
+        )}
+
+        {capturing && (
+          <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-3 text-xs text-zinc-400">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-teal-400" />
+            正在获取选中的文本…
+          </div>
         )}
 
         {streaming && bubbles[bubbles.length - 1]?.role === 'user' && (

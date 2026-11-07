@@ -3,6 +3,7 @@
 export const CH = {
   // 主进程 -> 渲染进程 事件
   LOOKUP_START: 'lookup:start',
+  LOOKUP_FAILED: 'lookup:failed',
   AI_CHUNK: 'ai:chunk',
   AI_DONE: 'ai:done',
   AI_ERROR: 'ai:error',
