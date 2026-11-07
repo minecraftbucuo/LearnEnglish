@@ -1,0 +1,13 @@
+diff --git a/out/binDownload.js b/out/binDownload.js
+index 287e8735e53970c9787253e85b5980988719a668..07971caa3d57ffc6bd3f7c5441247a0021657d13 100644
+--- a/out/binDownload.js
++++ b/out/binDownload.js
+@@ -24,7 +24,7 @@ async function download(url, output, checksum) {
+         version: "9.9.9",
+         artifactName: filenameWithExt,
+         cacheRoot: path.resolve((0, electronGet_1.getCacheDirectory)({ allowEnvVarOverride: true }), "downloads"),
+-        cacheMode: ElectronDownloadCacheMode.ReadWrite,
++        ...(ElectronDownloadCacheMode ? { cacheMode: ElectronDownloadCacheMode.ReadWrite } : {}),
+         ...(checksum != null ? { checksums: { [filenameWithExt]: checksum } } : { unsafelyDisableChecksums: true }),
+         mirrorOptions: { resolveAssetURL: async () => Promise.resolve(url) },
+         isGeneric: true,
