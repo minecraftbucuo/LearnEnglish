@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { AppSettings, ProviderConfig, ProviderTestResult } from '@shared/types'
+import type { AppSettings, PromptOverrides, ProviderConfig, ProviderTestResult } from '@shared/types'
+import { DEFAULT_PROMPTS } from '@shared/default-prompts'
 
 const PRESETS: {
   name: string
@@ -41,13 +42,32 @@ const PRESETS: {
   }
 ]
 
+const PROMPT_KEYS: [keyof PromptOverrides, string][] = [
+  ['word', '单词讲解'],
+  ['sentence', '句子讲解'],
+  ['zhWord', '中文查词（中→英）'],
+  ['zhSentence', '中文翻译（中→英）'],
+  ['image', '截图讲解']
+]
+
 export function SettingsPage(): React.JSX.Element {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [saved, setSaved] = useState(false)
+  const [promptDrafts, setPromptDrafts] = useState<Record<string, string>>({})
 
   useEffect(() => {
     void window.api.settingsGet().then(setSettings)
   }, [])
+
+  // 文本框显示"当前生效"的提示词：有覆盖用覆盖，否则显示内置默认
+  useEffect(() => {
+    if (!settings) return
+    setPromptDrafts(
+      Object.fromEntries(
+        PROMPT_KEYS.map(([k]) => [k, settings.prompts[k]?.trim() || DEFAULT_PROMPTS[k]])
+      )
+    )
+  }, [settings])
 
   if (!settings)
     return <div className="flex h-full items-center justify-center text-sm text-zinc-500">加载中…</div>
@@ -140,30 +160,55 @@ export function SettingsPage(): React.JSX.Element {
         </Section>
 
         {/* 提示词微调 */}
-        <Section title="提示词自定义" desc="留空使用内置模板。改坏了可以清空恢复默认。">
-          <div className="space-y-3">
-            {(
-              [
-                ['word', '单词讲解'],
-                ['sentence', '句子讲解'],
-                ['zhWord', '中文查词（中→英）'],
-                ['zhSentence', '中文翻译（中→英）'],
-                ['image', '截图讲解']
-              ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="block">
-                <span className="mb-1 block text-xs font-medium text-zinc-400">{label}</span>
-                <textarea
-                  defaultValue={settings.prompts[key] ?? ''}
-                  onBlur={(e) =>
-                    void save({ prompts: { ...settings.prompts, [key]: e.target.value } })
-                  }
-                  rows={3}
-                  placeholder="留空使用内置模板（注意：结尾需保留 <!--AI_DATA {...}--> 结构化输出约定）"
-                  className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-2 font-mono text-xs text-zinc-200 outline-none transition placeholder:text-zinc-600 focus:border-teal-500"
-                />
-              </label>
-            ))}
+        <Section
+          title="提示词自定义"
+          desc="文本框显示的是当前生效的模板（未改过即为内置默认）。注意保留结尾的 <!--AI_DATA {...}--> 结构化输出约定，划重点和复习卡片依赖它。"
+        >
+          <div className="space-y-4">
+            {PROMPT_KEYS.map(([key, label]) => {
+              const def = DEFAULT_PROMPTS[key]
+              const draft = promptDrafts[key] ?? def
+              const modified = draft.trim() !== def.trim()
+              return (
+                <label key={key} className="block">
+                  <span className="mb-1 flex items-center gap-2">
+                    <span className="text-xs font-medium text-zinc-400">{label}</span>
+                    {modified && (
+                      <span className="rounded bg-amber-500/15 px-1.5 text-[10px] text-amber-300">
+                        已自定义
+                      </span>
+                    )}
+                    <span className="flex-1" />
+                    {modified && (
+                      <button
+                        onClick={() => {
+                          setPromptDrafts((d) => ({ ...d, [key]: def }))
+                          void save({ prompts: { ...settings.prompts, [key]: '' } })
+                        }}
+                        className="text-[11px] text-zinc-500 transition hover:text-teal-300"
+                      >
+                        还原默认
+                      </button>
+                    )}
+                  </span>
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setPromptDrafts((d) => ({ ...d, [key]: e.target.value }))}
+                    onBlur={() =>
+                      void save({
+                        prompts: {
+                          ...settings.prompts,
+                          [key]: draft.trim() === def.trim() ? '' : draft
+                        }
+                      })
+                    }
+                    rows={8}
+                    spellCheck={false}
+                    className="w-full resize-y rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-2 font-mono text-[11px] leading-5 text-zinc-300 outline-none transition focus:border-teal-500"
+                  />
+                </label>
+              )
+            })}
           </div>
         </Section>
       </div>
