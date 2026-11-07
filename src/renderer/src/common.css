@@ -1,26 +1,31 @@
 @import "tailwindcss";
 
+html {
+  color-scheme: dark;
+}
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+  background: #09090b;
   font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
   user-select: none;
 }
 
-/* AI 讲解 Markdown 正文 */
+/* AI 讲解 Markdown 正文（深色） */
 .md-body {
   font-size: 13.5px;
   line-height: 1.7;
-  color: #1e293b;
+  color: #e4e4e7;
   word-break: break-word;
 }
 .md-body h2 {
   font-size: 14px;
   font-weight: 700;
   margin: 1em 0 0.4em;
-  color: #0f766e;
+  color: #2dd4bf;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -53,18 +58,20 @@ body,
   margin: 0.25em 0;
 }
 .md-body strong {
-  color: #0f766e;
+  color: #5eead4;
   font-weight: 600;
 }
 .md-body code {
-  background: #e2e8f0;
+  background: #27272a;
   border-radius: 4px;
   padding: 0.1em 0.35em;
   font-size: 0.85em;
+  color: #a5f3fc;
 }
 .md-body pre {
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #18181b;
+  border: 1px solid #27272a;
+  color: #e4e4e7;
   border-radius: 8px;
   padding: 10px 12px;
   overflow-x: auto;
@@ -76,11 +83,11 @@ body,
   padding: 0;
 }
 .md-body blockquote {
-  border-left: 3px solid #99f6e4;
+  border-left: 3px solid #134e4a;
   margin: 0.5em 0;
   padding: 0.1em 0.8em;
-  color: #475569;
-  background: #f0fdfa;
+  color: #a1a1aa;
+  background: rgba(20, 184, 166, 0.06);
 }
 .md-body table {
   border-collapse: collapse;
@@ -88,30 +95,30 @@ body,
 }
 .md-body th,
 .md-body td {
-  border: 1px solid #cbd5e1;
+  border: 1px solid #3f3f46;
   padding: 0.25em 0.6em;
   font-size: 0.9em;
 }
 .md-body hr {
   border: none;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #27272a;
   margin: 0.8em 0;
 }
 .md-body a {
-  color: #0d9488;
+  color: #2dd4bf;
 }
 
-/* 细滚动条 */
+/* 细滚动条（深色） */
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #3f3f46;
   border-radius: 4px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #52525b;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
@@ -128,7 +135,7 @@ body,
 /* 流式输出光标 */
 .stream-cursor::after {
   content: "▍";
-  color: #14b8a6;
+  color: #2dd4bf;
   animation: blink 1s step-end infinite;
 }
 @keyframes blink {

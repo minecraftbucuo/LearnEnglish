@@ -48,7 +48,7 @@ export function createMainWindow(): BrowserWindow {
     show: false,
     title: 'LearnEnglish',
     autoHideMenuBar: true,
-    backgroundColor: '#f6f7fb',
+    backgroundColor: '#09090b',
     icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: webPrefs
   })
@@ -88,7 +88,7 @@ export function createPopupWindow(): BrowserWindow {
     fullscreenable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#111113',
     webPreferences: webPrefs
   })
   popupWindow.setAlwaysOnTop(true, 'screen-saver')

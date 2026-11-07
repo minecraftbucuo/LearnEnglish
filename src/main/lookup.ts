@@ -44,7 +44,7 @@ function popupSend(channel: string, payload: unknown): void {
 /** Alt+Q：抓取选中文本并查词 */
 export async function triggerLookup(): Promise<void> {
   const cap = await captureSelectedText()
-  if (!cap.ok) return // 未选中文本，静默忽略
+  if (!cap.ok) return // 未选中文本/复制未生效，静默忽略
   startLookup({ text: cap.text, source: 'selection' })
 }
 

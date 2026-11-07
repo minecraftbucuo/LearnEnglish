@@ -15,8 +15,8 @@ export function EntryImage({ entryId }: { entryId: number }): React.JSX.Element 
   if (!src) return null
   return (
     <div>
-      <div className="mb-1.5 mt-1 text-xs font-semibold text-slate-500">来源截图</div>
-      <img src={src} alt="来源截图" className="max-h-56 w-auto rounded-lg border border-slate-200" />
+      <div className="mb-1.5 mt-1 text-xs font-semibold text-zinc-500">来源截图</div>
+      <img src={src} alt="来源截图" className="max-h-56 w-auto rounded-lg border border-zinc-800" />
     </div>
   )
 }

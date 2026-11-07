@@ -147,7 +147,7 @@ export default function App(): React.JSX.Element {
       {/* 工具栏 */}
       {hasSelection && (
         <div
-          className="absolute z-10 flex items-center gap-1.5 rounded-lg bg-white/95 p-1 shadow-lg"
+          className="absolute z-10 flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900/95 p-1 shadow-xl shadow-black/50"
           style={{
             left: Math.min(
               (drag ?? rect)!.x + Math.max((drag ?? rect)!.w - 210, 8),
@@ -159,7 +159,7 @@ export default function App(): React.JSX.Element {
           <button
             onClick={() => void confirm()}
             disabled={busy}
-            className="rounded-md bg-teal-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+            className="rounded-md bg-teal-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-teal-500 disabled:opacity-50"
           >
             ✅ 识别讲解 (Enter)
           </button>
@@ -168,13 +168,13 @@ export default function App(): React.JSX.Element {
               setRect(null)
               setDrag(null)
             }}
-            className="rounded-md px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100"
+            className="rounded-md px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
           >
             重选
           </button>
           <button
             onClick={cancel}
-            className="rounded-md px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-100"
+            className="rounded-md px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
           >
             取消 (Esc)
           </button>

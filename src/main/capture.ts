@@ -1,8 +1,9 @@
 // 选中文本捕获：koffi 调 user32.SendInput 模拟 Ctrl+C，读取剪贴板后还原。
-// koffi 加载失败时回退到 PowerShell SendKeys 方案。
-import { clipboard } from 'electron'
+// koffi 加载失败时回退到 PowerShell SendKeys 方案（较慢，会打日志）。
+import { clipboard, BrowserWindow } from 'electron'
 import { spawn } from 'node:child_process'
 import koffi from 'koffi'
+import { getPopupWindow } from './windows'
 
 const VK_CONTROL = 0x11
 const VK_C = 0x43
@@ -18,8 +19,9 @@ try {
   sendInput = user32.func(
     'uint32 __stdcall SendInput(uint32 count, void *inputs, int32 size)'
   ) as SendInputFn
+  console.log('[capture] SendInput via koffi 已就绪')
 } catch (err) {
-  console.error('[capture] koffi load user32.dll failed, fallback to PowerShell:', err)
+  console.error('[capture] koffi 加载失败，将回退 PowerShell（较慢）:', err)
 }
 
 function keybdEvent(buf: Buffer, offset: number, vk: number, flags: number): void {
@@ -41,13 +43,14 @@ function pressCtrlCSendInput(): boolean {
     keybdEvent(buf, 120, VK_CONTROL, KEYEVENTF_KEYUP)
     return sendInput(4, buf, INPUT_SIZE) === 4
   } catch (err) {
-    console.error('[capture] SendInput failed:', err)
+    console.error('[capture] SendInput 调用失败:', err)
     return false
   }
 }
 
 function pressCtrlCPowerShell(): void {
-  const script = 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^c")'
+  const script =
+    'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^c")'
   const ps = spawn(
     'powershell.exe',
     ['-NoProfile', '-NonInteractive', '-Command', script],
@@ -65,32 +68,48 @@ export interface CaptureResult {
 
 /**
  * 抓取当前前台应用中选中的文本。
- * 流程：保存并清空剪贴板 → 模拟 Ctrl+C → 轮询读取 → 还原剪贴板。
+ * 流程：隐藏自家弹窗 → 保存并清空剪贴板 → 模拟 Ctrl+C → 快速轮询 → 还原剪贴板。
+ * 关键防呆：读到的文本必须与旧剪贴板内容不同，否则视为复制未生效（避免把历史复制内容当成选中文本）。
  */
 export async function captureSelectedText(): Promise<CaptureResult> {
+  const t0 = Date.now()
+  // 若我们自己的窗口正持有焦点，先隐藏弹窗让焦点回到目标应用
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused && focused === getPopupWindow()) {
+    focused.hide()
+  }
+
   const savedText = clipboard.readText()
   const savedImage = clipboard.readImage()
-  const hadSaved = savedText.length > 0 || !savedImage.isEmpty()
+  const savedTextTrimmed = savedText.trim()
 
   clipboard.writeText('') // 清空以便检测复制是否成功
   if (!(sendInput && pressCtrlCSendInput())) pressCtrlCPowerShell()
 
   let text = ''
-  for (let i = 0; i < 6; i++) {
-    await sleep(80)
-    text = clipboard.readText().trim()
-    if (text) break
+  const deadline = Date.now() + 450
+  while (Date.now() < deadline) {
+    await sleep(25)
+    const current = clipboard.readText().trim()
+    // 与旧内容相同 = 剪贴板管理器还原/复制未生效，不算抓到
+    if (current && current !== savedTextTrimmed) {
+      text = current
+      break
+    }
   }
 
   // 还原剪贴板（文本优先；仅有图片时还原图片）
-  if (savedText.length > 0) {
+  if (savedTextTrimmed) {
     clipboard.writeText(savedText)
   } else if (!savedImage.isEmpty()) {
     clipboard.writeImage(savedImage)
-  } else if (!text) {
+  } else {
     clipboard.clear()
   }
-  if (!hadSaved && !text) clipboard.clear()
 
+  console.log(
+    `[capture] ok=${!!text} elapsed=${Date.now() - t0}ms len=${text.length}` +
+      (savedTextTrimmed ? ' (已有剪贴板内容，已做比对)' : '')
+  )
   return { ok: text.length > 0, text }
 }

@@ -5,16 +5,11 @@ import { EntryImage } from '../components/EntryImage'
 
 type Phase = 'idle' | 'session' | 'done'
 
-interface SessionResult {
-  answered: number
-  again: number
-}
-
 export function ReviewPage(): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>('idle')
   const [queue, setQueue] = useState<ReviewCard[]>([])
   const [idx, setIdx] = useState(0)
-  const [result, setResult] = useState<SessionResult>({ answered: 0, again: 0 })
+  const [result, setResult] = useState({ answered: 0, again: 0 })
   const [loading, setLoading] = useState(true)
   const [dueCount, setDueCount] = useState(0)
   const [newRemaining, setNewRemaining] = useState(0)
@@ -57,9 +52,7 @@ export function ReviewPage(): React.JSX.Element {
     }
   }
 
-  if (loading) {
-    return <Centered>加载中…</Centered>
-  }
+  if (loading) return <Centered>加载中…</Centered>
 
   if (phase === 'idle' || phase === 'done') {
     const finished = phase === 'done'
@@ -68,32 +61,32 @@ export function ReviewPage(): React.JSX.Element {
         {finished && (
           <div className="text-center">
             <div className="text-4xl">{result.again === 0 ? '🎉' : '💪'}</div>
-            <div className="mt-3 text-lg font-semibold text-slate-800">本轮完成</div>
-            <div className="mt-1 text-sm text-slate-500">
+            <div className="mt-3 text-lg font-semibold text-zinc-100">本轮完成</div>
+            <div className="mt-1 text-sm text-zinc-500">
               共复习 {result.answered} 张
               {result.again > 0 && <>，其中 {result.again} 张忘记（稍后会重现）</>}
             </div>
           </div>
         )}
         <div className="flex gap-4">
-          <div className="w-36 rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center shadow-sm">
-            <div className="text-3xl font-bold text-teal-600">{dueCount}</div>
-            <div className="mt-1 text-xs text-slate-500">到期复习</div>
+          <div className="w-36 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30">
+            <div className="text-3xl font-bold text-teal-400">{dueCount}</div>
+            <div className="mt-1 text-xs text-zinc-500">到期复习</div>
           </div>
-          <div className="w-36 rounded-2xl border border-slate-200 bg-white px-4 py-5 text-center shadow-sm">
-            <div className="text-3xl font-bold text-blue-600">{newRemaining}</div>
-            <div className="mt-1 text-xs text-slate-500">今日新卡</div>
+          <div className="w-36 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30">
+            <div className="text-3xl font-bold text-sky-400">{newRemaining}</div>
+            <div className="mt-1 text-xs text-zinc-500">今日新卡</div>
           </div>
         </div>
         <button
           onClick={() => void start()}
           disabled={dueCount + newRemaining === 0}
-          className="rounded-xl bg-teal-600 px-10 py-3 text-sm font-medium text-white shadow transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-xl bg-teal-600 px-10 py-3 text-sm font-medium text-white shadow transition hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {finished ? '再来一轮' : '开始复习'}
         </button>
         {dueCount + newRemaining === 0 && (
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-zinc-600">
             今日任务已完成 ✅ 划重点的新词会在明天出现在这里
           </div>
         )}
@@ -107,10 +100,10 @@ export function ReviewPage(): React.JSX.Element {
 // ---------- 复习会话 ----------
 
 const RATINGS: { rating: 1 | 2 | 3 | 4; label: string; color: string; key: string }[] = [
-  { rating: 1, label: '忘记', color: 'bg-red-500 hover:bg-red-600', key: '1' },
-  { rating: 2, label: '困难', color: 'bg-orange-500 hover:bg-orange-600', key: '2' },
-  { rating: 3, label: '良好', color: 'bg-teal-600 hover:bg-teal-700', key: '3' },
-  { rating: 4, label: '简单', color: 'bg-sky-600 hover:bg-sky-700', key: '4' }
+  { rating: 1, label: '忘记', color: 'bg-red-600 hover:bg-red-500', key: '1' },
+  { rating: 2, label: '困难', color: 'bg-orange-600 hover:bg-orange-500', key: '2' },
+  { rating: 3, label: '良好', color: 'bg-teal-600 hover:bg-teal-500', key: '3' },
+  { rating: 4, label: '简单', color: 'bg-sky-600 hover:bg-sky-500', key: '4' }
 ]
 
 function ReviewSession({
@@ -127,7 +120,6 @@ function ReviewSession({
   const [spellingMode, setSpellingMode] = useState(false)
   const [spellingInput, setSpellingInput] = useState('')
   const [spellingResult, setSpellingResult] = useState<'none' | 'correct' | 'wrong'>('none')
-  const inputRef = useRef<HTMLInputElement>(null)
 
   // 新卡首次展示时计入今日新卡配额
   useEffect(() => {
@@ -175,13 +167,11 @@ function ReviewSession({
       entry.text.trim().toLowerCase().replace(/\s+/g, ' ')
     if (ok) {
       setSpellingResult('correct')
-      // 拼写对按「良好」，稍作停顿再进下一张
       setTimeout(() => {
         setSpellingResult('none')
         void onAnswer(3, 'spelling')
       }, 650)
     } else {
-      // 答错：先展示正确答案，用户按空格继续
       setSpellingResult('wrong')
       setFlipped(true)
     }
@@ -191,21 +181,25 @@ function ReviewSession({
     <div className="mx-auto flex h-full max-w-2xl flex-col px-6 py-5">
       {/* 顶部进度 */}
       <div className="mb-4 flex items-center gap-3">
-        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200">
+        <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-800">
           <div
             className="h-full rounded-full bg-teal-500 transition-all"
             style={{ width: `${(index / cards.length) * 100}%` }}
           />
         </div>
-        <span className="shrink-0 text-xs text-slate-500">
+        <span className="shrink-0 text-xs text-zinc-500">
           {index + 1} / {cards.length}
         </span>
-        {card.isNew && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">新卡</span>}
+        {card.isNew && (
+          <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-300">新卡</span>
+        )}
         {entry.type === 'word' && (
           <button
             onClick={() => setSpellingMode((v) => !v)}
-            className={`shrink-0 rounded px-2 py-0.5 text-[11px] transition ${
-              spellingMode ? 'bg-violet-600 text-white' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+            className={`shrink-0 rounded border px-2 py-0.5 text-[11px] transition ${
+              spellingMode
+                ? 'border-violet-500 bg-violet-600 text-white'
+                : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
             }`}
           >
             {spellingMode ? '拼写模式中' : '拼写模式'}
@@ -215,29 +209,32 @@ function ReviewSession({
 
       {/* 卡片 */}
       <div
-        className="flex min-h-0 flex-1 cursor-pointer flex-col rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="flex min-h-0 flex-1 cursor-pointer flex-col rounded-2xl border border-zinc-800 bg-zinc-900 shadow-lg shadow-black/30"
         onClick={() => {
           if (!spellingMode) setFlipped((f) => !f)
         }}
       >
-        {/* 正面 / 背面上半部 */}
         <div className="flex flex-col items-center px-6 pb-4 pt-8">
           {spellingMode && !flipped ? (
             <>
-              <div className="text-center text-xs text-slate-400">看释义，默写英文</div>
-              <div className="mt-3 select-text text-center text-xl font-medium text-slate-800">
-                {s?.pos && <span className="mr-1.5 text-teal-700">{s.pos}</span>}
+              <div className="text-center text-xs text-zinc-500">看释义，默写英文</div>
+              <div className="mt-3 select-text text-center text-xl font-medium text-zinc-100">
+                {s?.pos && <span className="mr-1.5 text-teal-300">{s.pos}</span>}
                 {answerText || '（暂无释义，请切换回识记模式）'}
               </div>
             </>
           ) : (
-            <div className="select-text text-center text-2xl font-semibold text-slate-800">{entry.text}</div>
+            <div className="select-text text-center text-2xl font-semibold text-zinc-100">
+              {entry.text}
+            </div>
           )}
 
           {spellingMode && spellingResult === 'none' && !flipped && (
-            <div className="mt-6 flex w-full max-w-sm items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="mt-6 flex w-full max-w-sm items-center gap-2"
+              onClick={(e) => e.stopPropagation()}
+            >
               <input
-                ref={inputRef}
                 autoFocus
                 value={spellingInput}
                 onChange={(e) => setSpellingInput(e.target.value)}
@@ -246,39 +243,43 @@ function ReviewSession({
                   e.stopPropagation()
                 }}
                 placeholder="输入英文后回车"
-                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-center text-lg outline-none focus:border-violet-400"
+                className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-center text-lg text-zinc-100 outline-none focus:border-violet-500"
               />
               <button
                 onClick={submitSpelling}
-                className="rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-700"
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-500"
               >
                 检查
               </button>
             </div>
           )}
           {spellingResult === 'wrong' && (
-            <div className="mt-3 text-center text-sm text-red-500">
-              正确答案：<span className="font-semibold text-slate-800">{entry.text}</span>
-              <div className="mt-2 text-xs text-slate-400">按空格继续（记为「忘记」，今天稍后会重现）</div>
+            <div className="mt-3 text-center text-sm text-red-400">
+              正确答案：<span className="font-semibold text-zinc-100">{entry.text}</span>
+              <div className="mt-2 text-xs text-zinc-500">
+                按空格继续（记为「忘记」，今天稍后会重现）
+              </div>
             </div>
           )}
-          {spellingResult === 'correct' && <div className="mt-3 text-sm text-teal-600">✅ 拼写正确</div>}
+          {spellingResult === 'correct' && (
+            <div className="mt-3 text-sm text-teal-400">✅ 拼写正确</div>
+          )}
 
           {!spellingMode && !flipped && (
-            <div className="mt-5 text-xs text-slate-400">点击卡片或按空格显示答案</div>
+            <div className="mt-5 text-xs text-zinc-600">点击卡片或按空格显示答案</div>
           )}
         </div>
 
         {/* 背面内容 */}
         {flipped && (
-          <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-100 px-6 py-4">
+          <div className="min-h-0 flex-1 overflow-y-auto border-t border-zinc-800 px-6 py-4">
             <div className="mb-3 flex justify-center gap-2">
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   speak(entry.text)
                 }}
-                className="rounded-md bg-slate-100 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-200"
+                className="rounded-md bg-zinc-800 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-700"
               >
                 🔊 朗读
               </button>
@@ -287,20 +288,22 @@ function ReviewSession({
               <div className="space-y-3">
                 {(s.phonetic || s.pos || s.definitionZh) && (
                   <div className="text-center">
-                    {s.phonetic && <span className="mr-2 text-slate-400">{s.phonetic}</span>}
-                    {s.pos && <span className="mr-1 font-medium text-teal-700">{s.pos}</span>}
-                    <span className="text-slate-700">{s.definitionZh}</span>
+                    {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}
+                    {s.pos && <span className="mr-1 font-medium text-teal-300">{s.pos}</span>}
+                    <span className="text-zinc-200">{s.definitionZh}</span>
                   </div>
                 )}
                 {s.translation && (
-                  <div className="select-text text-center text-[15px] text-slate-700">{s.translation}</div>
+                  <div className="select-text text-center text-[15px] text-zinc-200">
+                    {s.translation}
+                  </div>
                 )}
                 {s.examples && s.examples.length > 0 && (
-                  <div className="rounded-xl bg-slate-50 px-4 py-3">
+                  <div className="rounded-xl bg-zinc-800/60 px-4 py-3">
                     {s.examples.slice(0, 2).map((ex, i) => (
                       <div key={i} className="mb-1.5 last:mb-0">
-                        <div className="select-text text-[13px] text-slate-700">{ex.en}</div>
-                        <div className="text-xs text-slate-500">{ex.zh}</div>
+                        <div className="select-text text-[13px] text-zinc-300">{ex.en}</div>
+                        <div className="text-xs text-zinc-500">{ex.zh}</div>
                       </div>
                     ))}
                   </div>
@@ -309,20 +312,20 @@ function ReviewSession({
                   <div>
                     {s.keyPoints.slice(0, 4).map((k, i) => (
                       <div key={i} className="text-[13px] leading-6">
-                        <span className="font-medium text-teal-700">{k.term}</span>
-                        <span className="select-text text-slate-600">：{k.explanation}</span>
+                        <span className="font-medium text-teal-300">{k.term}</span>
+                        <span className="select-text text-zinc-400">：{k.explanation}</span>
                       </div>
                     ))}
                   </div>
                 )}
                 {entry.note && (
-                  <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                  <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200/80">
                     📝 {entry.note}
                   </div>
                 )}
               </div>
             ) : (
-              <div className="py-6 text-center text-sm text-slate-400">
+              <div className="py-6 text-center text-sm text-zinc-600">
                 这条重点还没有结构化讲解，去生词本查看详情或重新查询。
               </div>
             )}
@@ -357,5 +360,5 @@ function ReviewSession({
 }
 
 function Centered({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <div className="flex h-full items-center justify-center text-sm text-slate-400">{children}</div>
+  return <div className="flex h-full items-center justify-center text-sm text-zinc-500">{children}</div>
 }

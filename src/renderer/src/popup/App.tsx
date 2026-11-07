@@ -112,27 +112,31 @@ export default function App(): React.JSX.Element {
     : '查词'
 
   const badge =
-    session?.source === 'image' ? '图片' : (session?.text.trim().split(/\s+/).length ?? 1) > 1 ? '句子' : '单词'
+    session?.source === 'image'
+      ? '图片'
+      : (session?.text.trim().split(/\s+/).length ?? 1) > 1
+        ? '句子'
+        : '单词'
 
   return (
-    <div className="flex h-full flex-col bg-slate-50 text-slate-800">
+    <div className="flex h-full flex-col bg-zinc-950 text-zinc-100">
       {/* 标题栏（可拖动） */}
-      <header className="app-drag flex items-center gap-2 border-b border-slate-200 bg-white/80 px-3.5 py-2.5 backdrop-blur">
+      <header className="app-drag flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/80 px-3.5 py-2.5">
         <span className="text-base">📖</span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                 session?.source === 'image'
-                  ? 'bg-violet-100 text-violet-700'
+                  ? 'bg-violet-500/15 text-violet-300'
                   : badge === '单词'
-                    ? 'bg-teal-100 text-teal-700'
-                    : 'bg-amber-100 text-amber-700'
+                    ? 'bg-teal-500/15 text-teal-300'
+                    : 'bg-amber-500/15 text-amber-300'
               }`}
             >
               {badge}
             </span>
-            <span className="truncate text-[13px] font-medium text-slate-700" title={title}>
+            <span className="truncate text-[13px] font-medium text-zinc-200" title={title}>
               {title || '查词'}
             </span>
           </div>
@@ -160,27 +164,30 @@ export default function App(): React.JSX.Element {
 
       {/* 截图预览 */}
       {session?.imageDataUrl && (
-        <div className="border-b border-slate-200 bg-white px-3.5 py-2">
+        <div className="border-b border-zinc-800 bg-zinc-900 px-3.5 py-2">
           <img
             src={session.imageDataUrl}
             alt="查询截图"
-            className="max-h-28 w-auto rounded-md border border-slate-200"
+            className="max-h-28 w-auto rounded-md border border-zinc-700"
           />
         </div>
       )}
 
       {/* 正文 */}
-      <div ref={bodyRef} className="min-h-0 flex-1 select-text space-y-3 overflow-y-auto px-3.5 py-3">
+      <div
+        ref={bodyRef}
+        className="min-h-0 flex-1 select-text space-y-3 overflow-y-auto px-3.5 py-3"
+      >
         {!session && <Empty text="在任意应用中选中文本，按 Alt+Q 即可查询" />}
 
         {session?.noProvider && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
             <div className="mb-2 font-medium">尚未配置 AI 供应商</div>
-            <div className="mb-3 text-xs leading-5 text-amber-700">
+            <div className="mb-3 text-xs leading-5 text-amber-200/70">
               填入任意 OpenAI 兼容 API（智谱 / 豆包 / DeepSeek / Kimi / OpenAI 均可）即可开始查词。
             </div>
             <button
-              className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+              className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-medium text-zinc-950 transition hover:bg-amber-400"
               onClick={() => void window.api.openMain('settings')}
             >
               前往设置
@@ -196,28 +203,29 @@ export default function App(): React.JSX.Element {
               </div>
             </div>
           ) : (
-            <div key={i} className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
+            <div
+              key={i}
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3.5 py-2.5 shadow-sm shadow-black/30"
+            >
               <Md>{b.content}</Md>
-              {streaming && i === bubbles.length - 1 && (
-                <span className="stream-cursor text-teal-500" />
-              )}
+              {streaming && i === bubbles.length - 1 && <span className="stream-cursor text-teal-400" />}
             </div>
           )
         )}
 
         {streaming && bubbles[bubbles.length - 1]?.role === 'user' && (
-          <div className="text-xs text-slate-400">正在讲解…</div>
+          <div className="text-xs text-zinc-500">正在讲解…</div>
         )}
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
+          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-300">
             ⚠️ {error}
           </div>
         )}
       </div>
 
       {/* 追问输入 */}
-      <footer className="border-t border-slate-200 bg-white p-2.5">
+      <footer className="border-t border-zinc-800 bg-zinc-900 p-2.5">
         <div className="flex items-center gap-2">
           <input
             value={input}
@@ -227,12 +235,12 @@ export default function App(): React.JSX.Element {
             }}
             placeholder={streaming ? '讲解中…' : '继续追问，回车发送'}
             disabled={streaming || !session || session.noProvider}
-            className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[13px] outline-none transition focus:border-teal-400 focus:bg-white disabled:opacity-50"
+            className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-[13px] text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500 focus:bg-zinc-800 disabled:opacity-50"
           />
           <button
             onClick={() => void send()}
             disabled={streaming || !input.trim()}
-            className="rounded-lg bg-teal-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-teal-700 disabled:opacity-40"
+            className="rounded-lg bg-teal-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-teal-500 disabled:opacity-40"
           >
             发送
           </button>
@@ -257,8 +265,8 @@ function IconBtn({
     <button
       title={title}
       onClick={onClick}
-      className={`flex h-7 w-7 items-center justify-center rounded-md text-[13px] transition hover:bg-slate-100 ${
-        active ? 'text-amber-500' : 'text-slate-500'
+      className={`flex h-7 w-7 items-center justify-center rounded-md text-[13px] transition hover:bg-zinc-800 ${
+        active ? 'text-amber-400' : 'text-zinc-400'
       }`}
     >
       {children}
@@ -267,5 +275,5 @@ function IconBtn({
 }
 
 function Empty({ text }: { text: string }): React.JSX.Element {
-  return <div className="pt-16 text-center text-xs text-slate-400">{text}</div>
+  return <div className="pt-16 text-center text-xs text-zinc-500">{text}</div>
 }

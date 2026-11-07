@@ -25,14 +25,14 @@ export default function App(): React.JSX.Element {
   }, [])
 
   return (
-    <div className="flex h-full bg-slate-100">
+    <div className="flex h-full bg-zinc-950 text-zinc-100">
       {/* 侧边栏 */}
-      <aside className="flex w-44 shrink-0 flex-col border-r border-slate-200 bg-white">
+      <aside className="flex w-44 shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
         <div className="flex items-center gap-2 px-4 pb-3 pt-5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-sm font-bold text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-teal-500 text-sm font-bold text-white">
             E
           </div>
-          <div className="text-sm font-semibold text-slate-800">LearnEnglish</div>
+          <div className="text-sm font-semibold text-zinc-100">LearnEnglish</div>
         </div>
         <nav className="mt-2 flex-1 space-y-1 px-2.5">
           {TABS.map((t) => (
@@ -44,8 +44,8 @@ export default function App(): React.JSX.Element {
               }}
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
                 tab === t.key
-                  ? 'bg-teal-50 font-medium text-teal-700'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-teal-500/10 font-medium text-teal-300'
+                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
               }`}
             >
               <span>{t.icon}</span>
@@ -53,7 +53,7 @@ export default function App(): React.JSX.Element {
             </button>
           ))}
         </nav>
-        <div className="px-4 pb-4 text-[11px] text-slate-400">v0.1.0 · 数据仅存本机</div>
+        <div className="px-4 pb-4 text-[11px] text-zinc-600">v0.1.0 · 数据仅存本机</div>
       </aside>
 
       {/* 内容区 */}

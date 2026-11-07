@@ -37,46 +37,46 @@ export function LibraryPage(): React.JSX.Element {
   }
 
   const chip = (active: boolean): string =>
-    `rounded-full px-2.5 py-1 text-xs transition ${
-      active ? 'bg-teal-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+    `rounded-full px-2.5 py-1 text-xs transition border ${
+      active
+        ? 'border-teal-500 bg-teal-500/15 text-teal-300'
+        : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200'
     }`
 
   return (
     <div className="flex h-full">
       {/* 列表区 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="space-y-2.5 border-b border-slate-200 bg-white px-5 py-3.5">
-          <div className="flex items-center gap-2">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索单词、句子或笔记…"
-              className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm outline-none focus:border-teal-400 focus:bg-white"
-            />
-          </div>
+        <div className="space-y-2.5 border-b border-zinc-800 bg-zinc-900/60 px-5 py-3.5">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="搜索单词、句子或笔记…"
+            className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500"
+          />
           <div className="flex flex-wrap items-center gap-1.5">
             {(['all', 'word', 'sentence'] as TypeFilter[]).map((t) => (
               <button key={t} className={chip(type === t)} onClick={() => setType(t)}>
                 {t === 'all' ? '全部' : t === 'word' ? '单词' : '句子'}
               </button>
             ))}
-            <span className="mx-1 h-4 w-px bg-slate-200" />
+            <span className="mx-1 h-4 w-px bg-zinc-800" />
             {(['all', 'selection', 'image'] as SourceFilter[]).map((s) => (
               <button key={s} className={chip(source === s)} onClick={() => setSource(s)}>
                 {s === 'all' ? '全部来源' : s === 'selection' ? '选中查词' : '截图'}
               </button>
             ))}
-            <span className="mx-1 h-4 w-px bg-slate-200" />
+            <span className="mx-1 h-4 w-px bg-zinc-800" />
             <button className={chip(starredOnly)} onClick={() => setStarredOnly((v) => !v)}>
               ⭐ 重点
             </button>
-            <span className="ml-auto text-xs text-slate-400">{entries.length} 条</span>
+            <span className="ml-auto text-xs text-zinc-600">{entries.length} 条</span>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {entries.length === 0 && (
-            <div className="pt-24 text-center text-sm text-slate-400">
+            <div className="pt-24 text-center text-sm text-zinc-600">
               还没有查询记录。在任意应用中选中文本按 Alt+Q 查询，或按 Alt+X 截图查询。
             </div>
           )}
@@ -87,22 +87,24 @@ export function LibraryPage(): React.JSX.Element {
                 onClick={() => setSelected(e)}
                 className={`flex w-full items-center gap-3 rounded-xl border px-4 py-2.5 text-left transition ${
                   selected?.id === e.id
-                    ? 'border-teal-300 bg-teal-50'
-                    : 'border-transparent bg-white hover:border-slate-200 hover:shadow-sm'
+                    ? 'border-teal-500/50 bg-teal-500/10'
+                    : 'border-zinc-800/60 bg-zinc-900 hover:border-zinc-700 hover:bg-zinc-800/60'
                 }`}
               >
                 <span
                   className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
-                    e.type === 'word' ? 'bg-teal-100 text-teal-700' : 'bg-amber-100 text-amber-700'
+                    e.type === 'word'
+                      ? 'bg-teal-500/15 text-teal-300'
+                      : 'bg-amber-500/15 text-amber-300'
                   }`}
                 >
                   {e.type === 'word' ? '词' : '句'}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{e.text}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">{e.text}</span>
                 {e.source === 'image' && <span className="shrink-0 text-xs">🖼️</span>}
                 {e.isStarred && <span className="shrink-0 text-xs">⭐</span>}
-                {e.suspended && <span className="shrink-0 text-[10px] text-slate-400">暂停</span>}
-                <span className="shrink-0 text-[11px] text-slate-400">×{e.lookupCount}</span>
+                {e.suspended && <span className="shrink-0 text-[10px] text-zinc-600">暂停</span>}
+                <span className="shrink-0 text-[11px] text-zinc-600">×{e.lookupCount}</span>
               </button>
             ))}
           </div>
@@ -152,47 +154,35 @@ function EntryDetail({
 
   const s = entry.structured
   return (
-    <aside className="flex w-[400px] shrink-0 flex-col border-l border-slate-200 bg-white">
-      <div className="flex items-center gap-1.5 border-b border-slate-100 px-4 py-3">
-        <button
+    <aside className="flex w-[400px] shrink-0 flex-col border-l border-zinc-800 bg-zinc-900">
+      <div className="flex items-center gap-1 border-b border-zinc-800 px-3 py-2.5">
+        <MiniAction
           onClick={() => void toggleStar()}
-          className={`rounded-md px-2 py-1 text-xs transition ${
-            entry.isStarred
-              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-              : 'text-slate-500 hover:bg-slate-100'
-          }`}
+          active={entry.isStarred}
+          className={entry.isStarred ? 'bg-amber-500/15 text-amber-300' : ''}
         >
           {entry.isStarred ? '⭐ 已划重点' : '☆ 划入重点'}
-        </button>
-        <button
-          onClick={() => speak(entry.text)}
-          className="rounded-md px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-100"
-        >
-          🔊 朗读
-        </button>
+        </MiniAction>
+        <MiniAction onClick={() => speak(entry.text)}>🔊 朗读</MiniAction>
         <div className="flex-1" />
-        <button
-          onClick={() => void toggleSuspend()}
-          className="rounded-md px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-100"
-          title="暂停后不进入复习队列"
-        >
-          {entry.suspended ? '▶️ 恢复复习' : '⏸ 暂停复习'}
-        </button>
-        <button
-          onClick={() => void remove()}
-          className="rounded-md px-2 py-1 text-xs text-red-500 transition hover:bg-red-50"
-        >
+        <MiniAction onClick={() => void toggleSuspend()} title="暂停后不进入复习队列">
+          {entry.suspended ? '▶️ 恢复复习' : '⏸ 暂停'}
+        </MiniAction>
+        <MiniAction danger onClick={() => void remove()}>
           🗑
-        </button>
-        <button onClick={onClose} className="rounded-md px-1.5 py-1 text-slate-400 hover:bg-slate-100">
+        </MiniAction>
+        <button
+          onClick={onClose}
+          className="rounded-md px-1.5 py-1 text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-200"
+        >
           ✕
         </button>
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
         <div>
-          <div className="select-text text-lg font-semibold text-slate-800">{entry.text}</div>
-          <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-400">
+          <div className="select-text text-lg font-semibold text-zinc-100">{entry.text}</div>
+          <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-500">
             <span>{entry.type === 'word' ? '单词/短语' : '句子/段落'}</span>
             <span>·</span>
             <span>查询 {entry.lookupCount} 次</span>
@@ -203,7 +193,7 @@ function EntryDetail({
         </div>
 
         {entry.review && (
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <div className="rounded-lg bg-zinc-800/60 px-3 py-2 text-xs text-zinc-400">
             复习：已答 {entry.review.reps} 次 · 遗忘 {entry.review.lapses} 次 · 熟练度{' '}
             {entry.review.ease.toFixed(2)}
           </div>
@@ -212,16 +202,18 @@ function EntryDetail({
         {entry.source === 'image' && <EntryImage entryId={entry.id} />}
 
         {s && (
-          <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3.5 py-3">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-800/40 px-3.5 py-3">
             {(s.phonetic || s.pos || s.definitionZh) && (
-              <div className="mb-1.5 text-sm">
-                {s.phonetic && <span className="mr-2 text-slate-500">{s.phonetic}</span>}
-                {s.pos && <span className="mr-1 font-medium text-teal-700">{s.pos}</span>}
+              <div className="mb-1.5 text-sm text-zinc-200">
+                {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}
+                {s.pos && <span className="mr-1 font-medium text-teal-300">{s.pos}</span>}
                 <span>{s.definitionZh}</span>
               </div>
             )}
-            {s.translation && <div className="text-sm text-slate-700">{s.translation}</div>}
-            {s.definitionEn && <div className="mt-1 text-xs italic text-slate-500">{s.definitionEn}</div>}
+            {s.translation && <div className="text-sm text-zinc-200">{s.translation}</div>}
+            {s.definitionEn && (
+              <div className="mt-1 text-xs italic text-zinc-500">{s.definitionEn}</div>
+            )}
           </div>
         )}
 
@@ -231,8 +223,8 @@ function EntryDetail({
             <div className="space-y-2">
               {s.examples.map((ex, i) => (
                 <div key={i} className="text-[13px] leading-6">
-                  <div className="select-text text-slate-800">{ex.en}</div>
-                  <div className="text-slate-500">{ex.zh}</div>
+                  <div className="select-text text-zinc-200">{ex.en}</div>
+                  <div className="text-zinc-500">{ex.zh}</div>
                 </div>
               ))}
             </div>
@@ -245,8 +237,8 @@ function EntryDetail({
             <div className="space-y-1.5">
               {s.keyPoints.map((k, i) => (
                 <div key={i} className="text-[13px] leading-6">
-                  <span className="font-medium text-teal-700">{k.term}</span>
-                  <span className="select-text text-slate-600">：{k.explanation}</span>
+                  <span className="font-medium text-teal-300">{k.term}</span>
+                  <span className="select-text text-zinc-400">：{k.explanation}</span>
                 </div>
               ))}
             </div>
@@ -256,24 +248,25 @@ function EntryDetail({
         {s?.grammar && (
           <div>
             <SectionTitle>语法结构</SectionTitle>
-            <div className="select-text text-[13px] leading-6 text-slate-600">{s.grammar}</div>
+            <div className="select-text text-[13px] leading-6 text-zinc-400">{s.grammar}</div>
           </div>
         )}
 
         {entry.context && (
           <div>
             <SectionTitle>查询上下文</SectionTitle>
-            <div className="select-text rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+            <div className="select-text rounded-lg bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200/80">
               {entry.context}
             </div>
           </div>
         )}
 
-        {/* 原始讲解 */}
         {entry.structured && (
-          <details className="text-xs text-slate-400">
-            <summary className="cursor-pointer select-none hover:text-slate-600">查看全部结构化字段</summary>
-            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-5 text-slate-200">
+          <details className="text-xs text-zinc-600">
+            <summary className="cursor-pointer select-none hover:text-zinc-400">
+              查看全部结构化字段
+            </summary>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-zinc-900 p-3 text-[11px] leading-5 text-zinc-400 ring-1 ring-zinc-800">
               {JSON.stringify(entry.structured, null, 2)}
             </pre>
           </details>
@@ -287,7 +280,7 @@ function EntryDetail({
             onBlur={() => void saveNote()}
             rows={3}
             placeholder="记录自己的理解、联想、易错点…（失焦自动保存）"
-            className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] leading-6 outline-none focus:border-teal-400 focus:bg-white"
+            className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-2 text-[13px] leading-6 text-zinc-200 outline-none transition placeholder:text-zinc-600 focus:border-teal-500"
           />
         </div>
       </div>
@@ -295,6 +288,38 @@ function EntryDetail({
   )
 }
 
+function MiniAction({
+  children,
+  onClick,
+  danger,
+  active,
+  className = '',
+  title
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  danger?: boolean
+  active?: boolean
+  className?: string
+  title?: string
+}): React.JSX.Element {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      className={`rounded-md px-2 py-1 text-xs transition ${
+        danger
+          ? 'text-red-400 hover:bg-red-500/10'
+          : active
+            ? className
+            : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return <div className="mb-1.5 mt-1 text-xs font-semibold text-slate-500">{children}</div>
+  return <div className="mb-1.5 mt-1 text-xs font-semibold text-zinc-500">{children}</div>
 }
