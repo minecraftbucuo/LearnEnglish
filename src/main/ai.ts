@@ -25,6 +25,7 @@ function trimBaseURL(baseURL: string): string {
 /** 流式对话，逐段 yield 增量文本 */
 export async function* streamChat(opts: StreamOptions): AsyncGenerator<string> {
   const url = `${trimBaseURL(opts.provider.baseURL)}/chat/completions`
+  const t0 = Date.now()
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -39,6 +40,7 @@ export async function* streamChat(opts: StreamOptions): AsyncGenerator<string> {
     }),
     signal: opts.signal
   })
+  console.log(`[ai] HTTP ${res.status} 建连+响应头 ${Date.now() - t0}ms (${opts.model})`)
 
   if (!res.ok) {
     const body = (await res.text().catch(() => '')).slice(0, 500)

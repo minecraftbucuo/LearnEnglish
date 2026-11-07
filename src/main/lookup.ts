@@ -199,6 +199,8 @@ export async function runAi(lookupId: string, kindOverride?: LookupKind): Promis
   session.controller = new AbortController()
   session.streaming = true
   let full = ''
+  const t0 = Date.now()
+  let firstChunk = 0
   try {
     for await (const delta of streamChat({
       provider,
@@ -206,6 +208,10 @@ export async function runAi(lookupId: string, kindOverride?: LookupKind): Promis
       messages: session.messages,
       signal: session.controller.signal
     })) {
+      if (!firstChunk) {
+        firstChunk = Date.now()
+        console.log(`[ai] 首字延迟 ${firstChunk - t0}ms (${provider.name}/${model})`)
+      }
       full += delta
       popupSend(CH.AI_CHUNK, { lookupId, delta })
     }
@@ -222,6 +228,9 @@ export async function runAi(lookupId: string, kindOverride?: LookupKind): Promis
     return
   }
   session.streaming = false
+  console.log(
+    `[ai] 完成 总耗时 ${Date.now() - t0}ms 输出 ${full.length} 字符 (${provider.name}/${model})`
+  )
   finishStream(session, full)
 }
 
