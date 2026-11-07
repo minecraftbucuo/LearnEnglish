@@ -32,9 +32,14 @@ const api: Api = {
   entryDelete: (id) => ipcRenderer.invoke(CH.ENTRY_DELETE, id),
   entryImageData: (id) => ipcRenderer.invoke(CH.ENTRY_IMAGE_DATA, id),
   entryBoldTargets: (id) => ipcRenderer.invoke(CH.ENTRY_BOLD_TARGETS, id),
-  entryChatAsk: (entryId, question) => ipcRenderer.invoke(CH.ENTRY_CHAT_ASK, entryId, question),
+  entryChatAsk: (entryId, question, chatId) =>
+    ipcRenderer.invoke(CH.ENTRY_CHAT_ASK, entryId, question, chatId),
+  entryChatAbort: (chatId) => ipcRenderer.invoke(CH.ENTRY_CHAT_ABORT, chatId),
   entryChatList: (entryId) => ipcRenderer.invoke(CH.ENTRY_CHAT_LIST, entryId),
   entryChatDelete: (id) => ipcRenderer.invoke(CH.ENTRY_CHAT_DELETE, id),
+  onChatChunk: (cb) => subscribe(CH.ENTRY_CHAT_CHUNK, cb as never),
+  onChatDone: (cb) => subscribe(CH.ENTRY_CHAT_DONE, cb as never),
+  onChatError: (cb) => subscribe(CH.ENTRY_CHAT_ERROR, cb as never),
 
   reviewQueue: () => ipcRenderer.invoke(CH.REVIEW_QUEUE),
   freeQueue: () => ipcRenderer.invoke(CH.REVIEW_FREE_QUEUE),

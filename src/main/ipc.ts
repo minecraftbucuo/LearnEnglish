@@ -26,7 +26,13 @@ import {
   setStarred
 } from './db'
 import { getActiveProvider, getSettings, setSettings } from './settings'
-import { chatOnce, testProvider } from './ai'
+import { streamChat, testProvider } from './ai'
+
+// 进行中的追问流（chatId → 状态），用于推送增量与取消
+const chatStreams = new Map<
+  string,
+  { entryId: number; question: string; controller: AbortController; sender: Electron.WebContents }
+>()
 import { registerShortcuts } from './shortcuts'
 import { broadcast, hidePopup, setQuitting, showMainWindow } from './windows'
 import {
@@ -76,25 +82,55 @@ export function registerIpc(): void {
   })
   ipcMain.handle(CH.ENTRY_BOLD_TARGETS, (_e, id: number) => boldEntryTargets(id))
 
-  // ---- 追问（即笔记） ----
-  ipcMain.handle(CH.ENTRY_CHAT_ASK, async (_e, entryId: number, question: string) => {
-    const q = question.trim()
-    if (!q) throw new Error('问题不能为空')
-    const entry = getEntryById(entryId)
-    if (!entry) throw new Error('词条不存在')
-    const provider = getActiveProvider()
-    if (!provider) throw new Error('尚未配置 AI 供应商，请打开设置页配置。')
-    const context = entry.structured ? JSON.stringify(entry.structured).slice(0, 900) : '（无）'
-    const answer = await chatOnce(provider, provider.chatModel, [
-      {
-        role: 'system',
-        content:
-          `你是一位耐心的英语老师。用户正在学习词条「${entry.text}」，已有的讲解要点：${context}。` +
-          '请针对用户的追问给出简短、准确的中文回答（不超过 150 字），直接回答，绝不反问。'
-      },
-      { role: 'user', content: q }
-    ])
-    return addEntryChat(entryId, q, answer.trim() || '（模型未返回内容）')
+  // ---- 追问（流式，边生成边推送） ----
+  ipcMain.handle(
+    CH.ENTRY_CHAT_ASK,
+    async (e, entryId: number, question: string, chatId: string) => {
+      const q = question.trim()
+      if (!q) throw new Error('问题不能为空')
+      const entry = getEntryById(entryId)
+      if (!entry) throw new Error('词条不存在')
+      const provider = getActiveProvider()
+      if (!provider) throw new Error('尚未配置 AI 供应商，请打开设置页配置。')
+      const context = entry.structured ? JSON.stringify(entry.structured).slice(0, 900) : '（无）'
+      const controller = new AbortController()
+      chatStreams.set(chatId, { entryId, question: q, controller, sender: e.sender })
+      let full = ''
+      try {
+        for await (const delta of streamChat({
+          provider,
+          model: provider.chatModel,
+          messages: [
+            {
+              role: 'system',
+              content:
+                `你是一位耐心的英语老师。用户正在学习词条「${entry.text}」，已有的讲解要点：${context}。` +
+                '请针对用户的追问给出简短、准确的中文回答（不超过 150 字），直接回答，绝不反问。'
+            },
+            { role: 'user', content: q }
+          ],
+          signal: controller.signal
+        })) {
+          full += delta
+          if (!e.sender.isDestroyed()) e.sender.send(CH.ENTRY_CHAT_CHUNK, { chatId, delta })
+        }
+        const pair = addEntryChat(entryId, q, full.trim() || '（模型未返回内容）')
+        if (!e.sender.isDestroyed()) e.sender.send(CH.ENTRY_CHAT_DONE, { chatId, chat: pair })
+      } catch (err) {
+        const msg =
+          err instanceof Error && err.name === 'AbortError'
+            ? '已取消'
+            : err instanceof Error
+              ? err.message
+              : String(err)
+        if (!e.sender.isDestroyed()) e.sender.send(CH.ENTRY_CHAT_ERROR, { chatId, message: msg })
+      } finally {
+        chatStreams.delete(chatId)
+      }
+    }
+  )
+  ipcMain.handle(CH.ENTRY_CHAT_ABORT, (_e, chatId: string) => {
+    chatStreams.get(chatId)?.controller.abort()
   })
   ipcMain.handle(CH.ENTRY_CHAT_LIST, (_e, entryId: number) => listEntryChats(entryId))
   ipcMain.handle(CH.ENTRY_CHAT_DELETE, (_e, id: number) => deleteEntryChat(id))

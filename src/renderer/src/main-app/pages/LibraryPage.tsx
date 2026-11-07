@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { EntriesFilter, Entry, EntryChat, EntrySource, EntryType } from '@shared/types'
 import { fmtDateTime, isZhText, speak } from '../../utils'
 import { EntryImage } from '../components/EntryImage'
@@ -132,11 +132,39 @@ function EntryDetail({
 }): React.JSX.Element {
   const [chats, setChats] = useState<EntryChat[]>([])
   const [chatQ, setChatQ] = useState('')
-  const [asking, setAsking] = useState(false)
-  const [askErr, setAskErr] = useState<string | null>(null)
+  const [pending, setPending] = useState<{
+    chatId: string
+    entryId: number
+    question: string
+    answer: string
+    error: string | null
+  } | null>(null)
+  const entryIdRef = useRef(entry.id)
+
   useEffect(() => {
     void window.api.entryChatList(entry.id).then(setChats)
+    entryIdRef.current = entry.id
+    setPending(null) // 切换词条：进行中的流继续在后台完成并存库
   }, [entry.id])
+
+  useEffect(() => {
+    const offs = [
+      window.api.onChatChunk(({ chatId, delta }) => {
+        setPending((p) =>
+          p && p.chatId === chatId ? { ...p, answer: p.answer + delta } : p
+        )
+      }),
+      window.api.onChatDone(({ chatId, chat }) => {
+        setPending((p) => (p && p.chatId === chatId ? null : p))
+        // 只追加到当前正在查看的词条；否则已存库，切回时自然加载
+        if (chat.entryId === entryIdRef.current) setChats((cs) => [...cs, chat])
+      }),
+      window.api.onChatError(({ chatId, message }) => {
+        setPending((p) => (p && p.chatId === chatId ? { ...p, error: message } : p))
+      })
+    ]
+    return () => offs.forEach((f) => f())
+  }, [])
 
   async function toggleStar(): Promise<void> {
     await window.api.entryToggleStar(entry.id)
@@ -154,18 +182,11 @@ function EntryDetail({
   }
   async function ask(): Promise<void> {
     const q = chatQ.trim()
-    if (!q || asking) return
-    setAsking(true)
-    setAskErr(null)
-    try {
-      const pair = await window.api.entryChatAsk(entry.id, q)
-      setChats((cs) => [...cs, pair])
-      setChatQ('')
-    } catch (err) {
-      setAskErr(err instanceof Error ? err.message : String(err))
-    } finally {
-      setAsking(false)
-    }
+    if (!q || pending) return
+    const chatId = crypto.randomUUID()
+    setPending({ chatId, entryId: entry.id, question: q, answer: '', error: null })
+    setChatQ('')
+    await window.api.entryChatAsk(entry.id, q, chatId)
   }
   async function delChat(id: number): Promise<void> {
     await window.api.entryChatDelete(id)
@@ -379,7 +400,49 @@ function EntryDetail({
               </div>
             ))}
           </div>
-          {askErr && <div className="mt-1.5 text-[11px] text-red-300">⚠️ {askErr}</div>}
+          {/* 进行中的追问：点击即出现，流式填充 */}
+          {pending && pending.entryId === entry.id && (
+            <div className="rounded-xl border border-teal-500/25 bg-zinc-900/60 px-3 py-2">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1 select-text text-[12px] leading-5 text-teal-300">
+                  问：{pending.question}
+                </div>
+                {pending.error ? (
+                  <button
+                    title="关闭"
+                    onClick={() => setPending(null)}
+                    className="shrink-0 text-zinc-600 transition hover:text-zinc-300"
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <button
+                    title="取消"
+                    onClick={() => {
+                      void window.api.entryChatAbort(pending.chatId)
+                      setPending(null)
+                    }}
+                    className="shrink-0 text-zinc-600 transition hover:text-zinc-300"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {pending.error ? (
+                <div className="mt-1 text-[11px] leading-5 text-red-300">⚠️ {pending.error}</div>
+              ) : pending.answer ? (
+                <div className="mt-1 select-text">
+                  <Md>{pending.answer}</Md>
+                  <span className="stream-cursor text-teal-400" />
+                </div>
+              ) : (
+                <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400" />
+                  思考中…
+                </div>
+              )}
+            </div>
+          )}
           <div className="mt-2 flex items-center gap-2">
             <input
               value={chatQ}
@@ -387,13 +450,13 @@ function EntryDetail({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.nativeEvent.isComposing) void ask()
               }}
-              disabled={asking}
-              placeholder={asking ? '思考中…' : '问点细节，回车发送'}
+              disabled={!!pending}
+              placeholder={pending ? '回答中…' : '问点细节，回车发送'}
               className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-1.5 text-[13px] text-zinc-200 outline-none transition placeholder:text-zinc-600 focus:border-teal-500"
             />
             <button
               onClick={() => void ask()}
-              disabled={asking || !chatQ.trim()}
+              disabled={!!pending || !chatQ.trim()}
               className="shrink-0 rounded-lg bg-teal-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-teal-500 disabled:opacity-40"
             >
               提问

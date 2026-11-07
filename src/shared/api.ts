@@ -79,9 +79,13 @@ export interface Api {
   entryDelete(id: number): Promise<void>
   entryImageData(id: number): Promise<string | null>
   entryBoldTargets(id: number): Promise<Entry | null>
-  entryChatAsk(entryId: number, question: string): Promise<EntryChat>
+  entryChatAsk(entryId: number, question: string, chatId: string): Promise<void>
+  entryChatAbort(chatId: string): Promise<void>
   entryChatList(entryId: number): Promise<EntryChat[]>
   entryChatDelete(id: number): Promise<void>
+  onChatChunk(cb: (p: { chatId: string; delta: string }) => void): Unsubscribe
+  onChatDone(cb: (p: { chatId: string; chat: EntryChat }) => void): Unsubscribe
+  onChatError(cb: (p: { chatId: string; message: string }) => void): Unsubscribe
 
   // ---- 复习 ----
   reviewQueue(): Promise<ReviewQueue>
