@@ -19,6 +19,7 @@ const api: Api = {
   onSettingsChanged: (cb) => subscribe(CH.SETTINGS_CHANGED, cb as never),
 
   aiStart: (lookupId, force = false) => ipcRenderer.invoke(CH.AI_START, lookupId, force),
+  nestedLookup: (text) => ipcRenderer.invoke(CH.AI_NESTED_LOOKUP, text),
   aiFollowup: (lookupId, question) => ipcRenderer.invoke(CH.AI_FOLLOWUP, lookupId, question),
   aiAbort: (lookupId) => ipcRenderer.invoke(CH.AI_ABORT, lookupId),
   starCurrent: (lookupId) => ipcRenderer.invoke(CH.STAR_CURRENT, lookupId),
@@ -45,7 +46,6 @@ const api: Api = {
 
   openMain: (tab) => ipcRenderer.invoke(CH.APP_OPEN_MAIN, tab),
   hidePopup: () => ipcRenderer.invoke(CH.APP_HIDE_POPUP),
-  lookupText: (text) => ipcRenderer.invoke(CH.APP_LOOKUP_TEXT, text),
   quit: () => ipcRenderer.invoke(CH.APP_QUIT)
 }
 

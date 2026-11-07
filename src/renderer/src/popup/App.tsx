@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AiDonePayload, LookupStartPayload } from '@shared/types'
-import type { AiChunkPayload, AiErrorPayload } from '@shared/api'
+import type { AiChunkPayload, AiErrorPayload, NestedLookupResult } from '@shared/api'
 import { Md } from '../components/Md'
 import { isZhText, speak } from '../utils'
 
 interface Bubble {
   role: 'user' | 'assistant'
   content: string
+}
+
+/** 弹窗内双击/选词触发的嵌套查询卡片（追加在正文后，不顶掉当前内容） */
+interface NestedCard {
+  lookupId: string
+  text: string
+  bubbles: Bubble[] // 只有 assistant
+  streaming: boolean
+  error: string | null
+  starred: boolean
+  noProvider: boolean
+  fromCache: boolean
 }
 
 export default function App(): React.JSX.Element {
@@ -18,19 +30,31 @@ export default function App(): React.JSX.Element {
   const [input, setInput] = useState('')
   const [capturing, setCapturing] = useState(false)
   const [fromCache, setFromCache] = useState(false)
+  const [stack, setStack] = useState<NestedCard[]>([])
   const bodyRef = useRef<HTMLDivElement>(null)
-  const lookupIdRef = useRef<string | null>(null)
+  const lookupIdRef = useRef<string | null>(null) // 根会话
 
   useEffect(() => {
     const offs = [
       window.api.onLookupStart((p) => {
+        // 嵌套查询（Alt+Q 在弹窗内选词）：追加卡片，不重置当前内容
+        if (p.nested) {
+          pushNestedCard({
+            lookupId: p.lookupId,
+            text: p.text,
+            cachedMarkdown: p.cachedMarkdown ?? null,
+            isStarred: p.isStarred,
+            noProvider: p.noProvider
+          })
+          return
+        }
         lookupIdRef.current = p.lookupId
         setSession(p)
         setError(null)
         setStarred(p.isStarred)
         setInput('')
+        setStack([])
         if (p.capturing) {
-          // 抓取占位状态
           setCapturing(true)
           setFromCache(false)
           setBubbles([])
@@ -45,7 +69,6 @@ export default function App(): React.JSX.Element {
         if (p.noProvider) {
           setStreaming(false)
         } else if (p.cachedMarkdown) {
-          // 命中缓存：直接展示历史讲解，不调 API
           setStreaming(false)
           setFromCache(true)
           setBubbles((bs) => [...bs, { role: 'assistant', content: p.cachedMarkdown! }])
@@ -54,37 +77,59 @@ export default function App(): React.JSX.Element {
           void window.api.aiStart(p.lookupId)
         }
       }),
-      window.api.onLookupFailed(({ lookupId }) => {
-        if (lookupId !== lookupIdRef.current) return
-        setCapturing(false)
-        setStreaming(false)
-        setError('未捕获到选中文本。请先在目标应用里选中内容，并确保它处于前台（管理员权限的窗口会拦截模拟按键）。')
-      }),
       window.api.onAiChunk(({ lookupId, delta }: AiChunkPayload) => {
-        if (lookupId !== lookupIdRef.current) return
-        setBubbles((bs) => {
-          const last = bs[bs.length - 1]
-          if (last?.role === 'assistant') {
-            return [...bs.slice(0, -1), { role: 'assistant', content: last.content + delta }]
-          }
-          return [...bs, { role: 'assistant', content: delta }]
-        })
+        if (lookupId === lookupIdRef.current) {
+          setBubbles((bs) => {
+            const last = bs[bs.length - 1]
+            if (last?.role === 'assistant') {
+              return [...bs.slice(0, -1), { role: 'assistant', content: last.content + delta }]
+            }
+            return [...bs, { role: 'assistant', content: delta }]
+          })
+        } else {
+          setStack((cs) =>
+            cs.map((c) =>
+              c.lookupId === lookupId
+                ? {
+                    ...c,
+                    bubbles:
+                      c.bubbles.length > 0
+                        ? [...c.bubbles.slice(0, -1), { ...c.bubbles[c.bubbles.length - 1], content: c.bubbles[c.bubbles.length - 1].content + delta }]
+                        : [...c.bubbles, { role: 'assistant' as const, content: delta }]
+                  }
+                : c
+            )
+          )
+        }
       }),
       window.api.onAiDone(({ lookupId, markdown }: AiDonePayload) => {
-        if (lookupId !== lookupIdRef.current) return
-        setStreaming(false)
-        setBubbles((bs) => {
+        const apply = (bs: Bubble[]): Bubble[] => {
           const last = bs[bs.length - 1]
           if (last?.role === 'assistant') {
             return [...bs.slice(0, -1), { role: 'assistant', content: markdown || last.content }]
           }
           return markdown ? [...bs, { role: 'assistant', content: markdown }] : bs
-        })
+        }
+        if (lookupId === lookupIdRef.current) {
+          setStreaming(false)
+          setBubbles(apply)
+        } else {
+          setStack((cs) =>
+            cs.map((c) =>
+              c.lookupId === lookupId ? { ...c, streaming: false, bubbles: apply(c.bubbles) } : c
+            )
+          )
+        }
       }),
       window.api.onAiError(({ lookupId, message }: AiErrorPayload) => {
-        if (lookupId !== lookupIdRef.current) return
-        setStreaming(false)
-        setError(message)
+        if (lookupId === lookupIdRef.current) {
+          setStreaming(false)
+          setError(message)
+        } else {
+          setStack((cs) =>
+            cs.map((c) => (c.lookupId === lookupId ? { ...c, streaming: false, error: message } : c))
+          )
+        }
       })
     ]
     return () => offs.forEach((f) => f())
@@ -94,14 +139,22 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     const el = bodyRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [bubbles, error])
+  }, [bubbles, error, stack, capturing])
 
-  // 快捷键：Esc 关闭、Ctrl+S 划重点
+  // 快捷键：Esc 先弹出嵌套卡再关闭；Ctrl+S 划重点
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        void window.api.hidePopup()
+        setStack((cs) => {
+          if (cs.length > 0) {
+            const last = cs[cs.length - 1]
+            void window.api.aiAbort(last.lookupId)
+            return cs.slice(0, -1)
+          }
+          void window.api.hidePopup()
+          return cs
+        })
       } else if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
         e.preventDefault()
         void star()
@@ -118,16 +171,42 @@ export default function App(): React.JSX.Element {
     if (r.starred) setStarred(true)
   }
 
-  /** 重新生成：丢弃缓存，重新调 API */
-  async function regenerate(): Promise<void> {
-    const id = lookupIdRef.current
-    if (!id || streaming || !session) return
-    setFromCache(false)
-    setBubbles([
-      { role: 'user', content: session.source === 'image' ? '🖼️ 截图查询' : session.text }
+  /** 弹窗内双击单词 → 嵌套查询卡片 */
+  function pushNestedCard(n: {
+    lookupId: string
+    text: string
+    cachedMarkdown: string | null
+    isStarred: boolean
+    noProvider: boolean
+  }): void {
+    const fromCache = !!n.cachedMarkdown
+    setStack((cs) => [
+      ...cs,
+      {
+        lookupId: n.lookupId,
+        text: n.text,
+        bubbles: fromCache ? [{ role: 'assistant', content: n.cachedMarkdown! }] : [],
+        streaming: !fromCache && !n.noProvider,
+        error: null,
+        starred: n.isStarred,
+        noProvider: n.noProvider,
+        fromCache
+      }
     ])
-    setStreaming(true)
-    await window.api.aiStart(id, true)
+    if (!fromCache && !n.noProvider) void window.api.aiStart(n.lookupId)
+  }
+
+  async function dblClickLookup(): Promise<void> {
+    const sel = window.getSelection()?.toString().trim() ?? ''
+    if (!sel || sel.length > 48) return
+    const isZh = isZhText(sel)
+    if (!isZh && sel.split(/\s+/).length > 2) return
+    try {
+      const n: NestedLookupResult = await window.api.nestedLookup(sel)
+      pushNestedCard(n)
+    } catch {
+      // 无效文本，忽略
+    }
   }
 
   async function send(): Promise<void> {
@@ -218,10 +297,15 @@ export default function App(): React.JSX.Element {
         </div>
       )}
 
-      {/* 正文 */}
+      {/* 正文（双击单词即可在下方追加该词的讲解卡片） */}
       <div
         ref={bodyRef}
         className="min-h-0 flex-1 select-text space-y-3 overflow-y-auto px-3.5 py-3"
+        onDoubleClick={(e) => {
+          const target = e.target as HTMLElement
+          if (target.closest('button, input, textarea, a')) return
+          void dblClickLookup()
+        }}
       >
         {!session && <Empty text="在任意应用中选中文本，按 Alt+Q 即可查询" />}
 
@@ -286,9 +370,84 @@ export default function App(): React.JSX.Element {
             ⚠️ {error}
           </div>
         )}
+
+        {/* 嵌套查询卡片（双击单词 / 弹窗内 Alt+Q 追加） */}
+        {stack.map((card) => (
+          <div
+            key={card.lookupId}
+            className="rounded-xl border border-teal-500/25 bg-zinc-900/60 shadow-sm shadow-black/30"
+          >
+            <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-1.5">
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] ${
+                  isZhText(card.text) ? 'bg-violet-500/15 text-violet-300' : 'bg-teal-500/15 text-teal-300'
+                }`}
+              >
+                {isZhText(card.text) ? '中→英' : '词'}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-zinc-200">
+                {card.text}
+              </span>
+              <button
+                title="划入重点"
+                onClick={() => {
+                  void window.api.starCurrent(card.lookupId).then((r) => {
+                    if (r.starred) {
+                      setStack((cs) =>
+                        cs.map((c) => (c.lookupId === card.lookupId ? { ...c, starred: true } : c))
+                      )
+                    }
+                  })
+                }}
+                className={`rounded px-1 py-0.5 text-[11px] transition hover:bg-zinc-800 ${
+                  card.starred ? 'text-amber-400' : 'text-zinc-500'
+                }`}
+              >
+                {card.starred ? '⭐' : '☆'}
+              </button>
+              <button
+                title="收起（Esc 也可）"
+                onClick={() => {
+                  void window.api.aiAbort(card.lookupId)
+                  setStack((cs) => cs.filter((c) => c.lookupId !== card.lookupId))
+                }}
+                className="rounded px-1 py-0.5 text-[11px] text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-3.5 py-2.5">
+              {card.noProvider ? (
+                <div className="text-xs text-amber-300">尚未配置 AI 供应商</div>
+              ) : (
+                <>
+                  {card.bubbles.map((b, i) => (
+                    <div key={i} className="md-body">
+                      <Md>{b.content}</Md>
+                      {card.streaming && i === card.bubbles.length - 1 && (
+                        <span className="stream-cursor text-teal-400" />
+                      )}
+                    </div>
+                  ))}
+                  {card.streaming && card.bubbles.length === 0 && (
+                    <div className="text-xs text-zinc-500">正在讲解…</div>
+                  )}
+                  {card.fromCache && !card.streaming && (
+                    <div className="mt-1 text-right text-[10px] text-zinc-600">⚡ 缓存</div>
+                  )}
+                  {card.error && (
+                    <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 text-[11px] leading-5 text-red-300">
+                      ⚠️ {card.error}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* 追问输入 */}
+      {/* 追问输入（针对当前主查询） */}
       <footer className="border-t border-zinc-800 bg-zinc-900 p-2.5">
         <div className="flex items-center gap-2">
           <input
@@ -297,7 +456,7 @@ export default function App(): React.JSX.Element {
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing) void send()
             }}
-            placeholder={streaming ? '讲解中…' : '继续追问，回车发送'}
+            placeholder={streaming ? '讲解中…' : '继续追问，回车发送（双击单词可插入讲解卡片）'}
             disabled={streaming || !session || session.noProvider}
             className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-[13px] text-zinc-100 outline-none transition placeholder:text-zinc-500 focus:border-teal-500 focus:bg-zinc-800 disabled:opacity-50"
           />
@@ -312,6 +471,15 @@ export default function App(): React.JSX.Element {
       </footer>
     </div>
   )
+
+  async function regenerate(): Promise<void> {
+    const id = lookupIdRef.current
+    if (!id || streaming || !session) return
+    setFromCache(false)
+    setBubbles([{ role: 'user', content: session.source === 'image' ? '🖼️ 截图查询' : session.text }])
+    setStreaming(true)
+    await window.api.aiStart(id, true)
+  }
 }
 
 function IconBtn({

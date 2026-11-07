@@ -13,6 +13,7 @@ export const CH = {
 
   // 渲染进程 -> 主进程 invoke
   AI_START: 'ai:start',
+  AI_NESTED_LOOKUP: 'ai:nestedLookup', // 弹窗内双击单词：创建嵌套查询会话
   AI_FOLLOWUP: 'ai:followup',
   AI_ABORT: 'ai:abort',
   STAR_CURRENT: 'star:current',
@@ -34,6 +35,5 @@ export const CH = {
   SCREENSHOT_CANCEL: 'screenshot:cancel',
   APP_OPEN_MAIN: 'app:openMain',
   APP_HIDE_POPUP: 'app:hidePopup',
-  APP_LOOKUP_TEXT: 'app:lookupText', // 主窗口内双击/选中单词直接查
   APP_QUIT: 'app:quit'
 } as const

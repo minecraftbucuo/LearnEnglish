@@ -39,6 +39,15 @@ export interface SelectionRect {
   h: number
 }
 
+/** 弹窗内双击查词：创建嵌套会话的结果 */
+export interface NestedLookupResult {
+  lookupId: string
+  text: string
+  cachedMarkdown: string | null
+  isStarred: boolean
+  noProvider: boolean
+}
+
 type Unsubscribe = () => void
 
 export interface Api {
@@ -54,6 +63,7 @@ export interface Api {
 
   // ---- AI 查询 ----
   aiStart(lookupId: string, force?: boolean): Promise<void>
+  nestedLookup(text: string): Promise<NestedLookupResult>
   aiFollowup(lookupId: string, question: string): Promise<void>
   aiAbort(lookupId: string): Promise<void>
   starCurrent(lookupId: string): Promise<{ starred: boolean; entryId: number | null }>
@@ -85,6 +95,5 @@ export interface Api {
   // ---- 窗口 ----
   openMain(tab?: string): Promise<void>
   hidePopup(): Promise<void>
-  lookupText(text: string): Promise<void>
   quit(): Promise<void>
 }

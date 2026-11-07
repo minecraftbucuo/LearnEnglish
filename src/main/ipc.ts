@@ -28,8 +28,8 @@ import {
   abortAi,
   cancelScreenshot,
   confirmScreenshot,
+  createNestedLookup,
   followUp,
-  lookupTextFromRenderer,
   runAi,
   starCurrent
 } from './lookup'
@@ -41,6 +41,7 @@ export function registerIpc(): void {
     followUp(lookupId, question)
   )
   ipcMain.handle(CH.AI_ABORT, (_e, lookupId: string) => abortAi(lookupId))
+  ipcMain.handle(CH.AI_NESTED_LOOKUP, (_e, text: string) => createNestedLookup(text))
   ipcMain.handle(CH.STAR_CURRENT, (_e, lookupId: string) => starCurrent(lookupId))
 
   // ---- 生词本 ----
@@ -100,7 +101,6 @@ export function registerIpc(): void {
   // ---- 窗口 / 应用 ----
   ipcMain.handle(CH.APP_OPEN_MAIN, (_e, tab?: string) => showMainWindow(tab))
   ipcMain.handle(CH.APP_HIDE_POPUP, () => hidePopup())
-  ipcMain.handle(CH.APP_LOOKUP_TEXT, (_e, text: string) => lookupTextFromRenderer(text))
   ipcMain.handle(CH.APP_QUIT, () => {
     setQuitting(true)
     app.quit()

@@ -128,6 +128,7 @@ export interface LookupStartPayload {
   noProvider: boolean // 未配置 AI 供应商
   capturing?: boolean // true = 正在抓取选中文本（弹窗先显示占位状态）
   cachedMarkdown?: string | null // 命中缓存的历史讲解（有值则弹窗直接显示，不调 API）
+  nested?: boolean // true = 弹窗内嵌套查询（追加卡片，不重置弹窗）
 }
 
 export interface AiDonePayload {

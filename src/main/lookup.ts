@@ -59,18 +59,37 @@ export async function triggerLookup(): Promise<void> {
   // 应用内快捷查词：焦点在自家窗口时直接读渲染层选区，不走剪贴板（模拟的 Ctrl+C 也打不进自己）
   const focused = BrowserWindow.getFocusedWindow()
   if (focused && BrowserWindow.getAllWindows().includes(focused)) {
+    let selected = ''
     try {
-      const selected = String(
+      selected = String(
         await focused.webContents.executeJavaScript(
           "window.getSelection ? window.getSelection().toString() : ''"
         )
       ).trim()
-      if (selected) {
-        startLookup({ text: selected, source: 'selection' })
-        return
-      }
     } catch {
       // 渲染层不可用，忽略
+    }
+    if (selected) {
+      if (focused === getPopupWindow()) {
+        // 弹窗内查词：追加嵌套卡片，不顶掉当前内容
+        const nl = createNestedLookup(selected)
+        popupSend(CH.LOOKUP_START, {
+          lookupId: nl.lookupId,
+          text: nl.text,
+          source: 'selection',
+          imagePath: null,
+          imageDataUrl: null,
+          entryId: nl.entryId,
+          isStarred: nl.isStarred,
+          hasStructured: !!nl.cachedMarkdown,
+          cachedMarkdown: nl.cachedMarkdown,
+          noProvider: nl.noProvider,
+          nested: true
+        })
+      } else {
+        startLookup({ text: selected, source: 'selection' })
+      }
+      return
     }
     if (focused === getPopupWindow()) focused.hide() // 无选中：相当于关闭弹窗
     return
@@ -105,13 +124,6 @@ export async function triggerLookup(): Promise<void> {
 
 // 覆盖层对应的显示器（确认框选时换算物理坐标用）
 let overlayScaleFactor = 1
-
-/** 主窗口内双击/选词查词（渲染层调用） */
-export function lookupTextFromRenderer(text: string): void {
-  const t = text.trim()
-  if (!t || t.length > 200) return
-  startLookup({ text: t, source: 'selection' })
-}
 
 /** Alt+X：打开框选覆盖层（不预抓屏，覆盖层直接盖在活屏幕上） */
 export async function triggerScreenshot(): Promise<void> {
@@ -157,12 +169,12 @@ export function cancelScreenshot(): void {
 
 // ---------- 会话 ----------
 
-function startLookup(p: {
+function createSession(p: {
   text: string
   source: EntrySource
   imagePath?: string | null
   imageDataUrl?: string | null
-}): void {
+}): { session: LookupSession; existing: ReturnType<typeof findEntryByText>; noProvider: boolean } {
   const settings = getSettings()
   const noProvider = !settings.providers.length || !settings.activeProviderId
 
@@ -197,7 +209,16 @@ function startLookup(p: {
       sessions.delete(oldest)
     }
   }
+  return { session, existing, noProvider }
+}
 
+function startLookup(p: {
+  text: string
+  source: EntrySource
+  imagePath?: string | null
+  imageDataUrl?: string | null
+}): void {
+  const { session, existing, noProvider } = createSession(p)
   showPopupNearCursor()
   popupSend(CH.LOOKUP_START, {
     lookupId: session.id,
@@ -211,6 +232,23 @@ function startLookup(p: {
     cachedMarkdown: existing?.markdown ?? null,
     noProvider
   })
+}
+
+/** 弹窗内嵌套查询：创建会话但不重置弹窗 UI（弹窗以卡片形式追加展示） */
+export function createNestedLookup(
+  text: string
+): { lookupId: string; text: string; entryId: number | null; cachedMarkdown: string | null; isStarred: boolean; noProvider: boolean } {
+  const t = text.trim()
+  if (!t || t.length > 200) throw new Error('无效查询文本')
+  const { session, existing, noProvider } = createSession({ text: t, source: 'selection' })
+  return {
+    lookupId: session.id,
+    text: t,
+    entryId: session.entryId,
+    cachedMarkdown: existing?.markdown ?? null,
+    isStarred: session.isStarred,
+    noProvider
+  }
 }
 
 /** 开始/重查：构建消息并流式请求。force=true 时丢弃历史重新生成（弹窗「重新生成」按钮） */
