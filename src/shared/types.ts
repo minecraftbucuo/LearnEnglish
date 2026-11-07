@@ -86,6 +86,7 @@ export interface ProviderConfig {
   apiKey: string
   chatModel: string // 例如 glm-4-flash
   visionModel?: string // 例如 glm-4v-flash（截图查询用）
+  disableThinking?: boolean // 关闭深度思考（思考型模型如 doubao-seed/glm-4.5+ 首字延迟可从 ~9s 降到 ~1s）
 }
 
 export interface HotkeyConfig {

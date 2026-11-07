@@ -22,24 +22,51 @@ function trimBaseURL(baseURL: string): string {
   return baseURL.replace(/\/+$/, '')
 }
 
+function buildBody(opts: StreamOptions, withThinking: boolean): string {
+  const body: Record<string, unknown> = {
+    model: opts.model,
+    messages: opts.messages,
+    stream: true,
+    temperature: opts.temperature ?? 0.2
+  }
+  if (withThinking && opts.provider.disableThinking) {
+    // 火山方舟 / 智谱：关闭深度思考，大幅降低首字延迟
+    body.thinking = { type: 'disabled' }
+  }
+  return JSON.stringify(body)
+}
+
 /** 流式对话，逐段 yield 增量文本 */
 export async function* streamChat(opts: StreamOptions): AsyncGenerator<string> {
   const url = `${trimBaseURL(opts.provider.baseURL)}/chat/completions`
   const t0 = Date.now()
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${opts.provider.apiKey}`
     },
-    body: JSON.stringify({
-      model: opts.model,
-      messages: opts.messages,
-      stream: true,
-      temperature: opts.temperature ?? 0.2
-    }),
+    body: buildBody(opts, true),
     signal: opts.signal
   })
+  // 个别供应商不认识 thinking 参数会返回 4xx：自动去掉该参数重试一次
+  if (!res.ok && opts.provider.disableThinking) {
+    const errBody = await res.text().catch(() => '')
+    if (/thinking/i.test(errBody)) {
+      console.log('[ai] 服务商不支持 thinking 参数，去掉后重试')
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${opts.provider.apiKey}`
+        },
+        body: buildBody(opts, false),
+        signal: opts.signal
+      })
+    } else {
+      res = new Response(errBody, { status: res.status, statusText: res.statusText })
+    }
+  }
   console.log(`[ai] HTTP ${res.status} 建连+响应头 ${Date.now() - t0}ms (${opts.model})`)
 
   if (!res.ok) {
@@ -106,7 +133,8 @@ export async function testProvider(
         model,
         messages: [{ role: 'user', content: '请只回复两个字：成功' }],
         max_tokens: 16,
-        temperature: 0
+        temperature: 0,
+        ...(provider.disableThinking ? { thinking: { type: 'disabled' } } : {})
       }),
       signal: AbortSignal.timeout(20_000)
     })

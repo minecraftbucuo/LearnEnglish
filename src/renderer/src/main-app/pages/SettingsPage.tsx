@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { AppSettings, ProviderConfig, ProviderTestResult } from '@shared/types'
 
-const PRESETS: { name: string; baseURL: string; chatModel: string; visionModel: string }[] = [
+const PRESETS: {
+  name: string
+  baseURL: string
+  chatModel: string
+  visionModel: string
+  disableThinking?: boolean
+}[] = [
   {
     name: '智谱 GLM',
     baseURL: 'https://open.bigmodel.cn/api/paas/v4',
@@ -12,7 +18,8 @@ const PRESETS: { name: string; baseURL: string; chatModel: string; visionModel: 
     name: '火山方舟 (豆包)',
     baseURL: 'https://ark.cn-beijing.volces.com/api/v3',
     chatModel: 'doubao-1-5-lite-32k-250115',
-    visionModel: 'doubao-1-5-vision-lite-250315'
+    visionModel: 'doubao-1-5-vision-lite-250315',
+    disableThinking: true
   },
   {
     name: 'DeepSeek',
@@ -275,7 +282,11 @@ function ProviderList({
       })}
 
       {editing ? (
-        <ProviderForm initial={editing} onCancel={() => setEditing(null)} onCommit={commit} />
+        <ProviderForm
+          initial={{ disableThinking: false, ...editing }}
+          onCancel={() => setEditing(null)}
+          onCommit={commit}
+        />
       ) : (
         <button
           onClick={() =>
@@ -368,6 +379,15 @@ function ProviderForm({
           />
         </Field>
       </div>
+      <label className="flex items-center gap-2 text-xs text-zinc-300">
+        <input
+          type="checkbox"
+          checked={!!p.disableThinking}
+          onChange={(e) => set({ disableThinking: e.target.checked })}
+          className="h-4 w-4 accent-teal-500"
+        />
+        禁用深度思考（火山方舟 doubao-seed / 智谱 glm-4.5+ 等思考型模型建议开启，首字延迟可从 ~9s 降到 ~1s；不支持该参数的服务商会自动回退）
+      </label>
       <div className="flex justify-end gap-2">
         <button
           onClick={onCancel}

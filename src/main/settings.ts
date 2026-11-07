@@ -16,12 +16,19 @@ const store = new Store<AppSettings>({ defaults: DEFAULTS })
 
 export function getSettings(): AppSettings {
   const s = store.store
+  const providers = Array.isArray(s.providers) ? s.providers : []
+  // 兼容旧配置：火山方舟/智谱默认关闭深度思考（这两家的思考型模型首字延迟极高）
+  for (const p of providers) {
+    if (p.disableThinking === undefined) {
+      p.disableThinking = /volces\.com|bigmodel\.cn/.test(p.baseURL)
+    }
+  }
   return {
     ...DEFAULTS,
     ...s,
     hotkeys: { ...DEFAULTS.hotkeys, ...(s.hotkeys ?? {}) },
     prompts: { ...(s.prompts ?? {}) },
-    providers: Array.isArray(s.providers) ? s.providers : []
+    providers
   }
 }
 
