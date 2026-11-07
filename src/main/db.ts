@@ -4,6 +4,7 @@ import { app } from 'electron'
 import type {
   EntriesFilter,
   Entry,
+  EntryChat,
   EntrySource,
   EntryType,
   Rating,
@@ -90,6 +91,14 @@ export function initDb(): void {
       reviewed_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_logs_reviewed ON review_logs(reviewed_at);
+    CREATE TABLE IF NOT EXISTS entry_chats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chats_entry ON entry_chats(entry_id, created_at);
   `)
   // 老库迁移：补 markdown 缓存列
   const cols = (db.prepare('PRAGMA table_info(entries)').all() as { name: string }[]).map(
@@ -470,6 +479,51 @@ export function getReviewStats(): ReviewStats {
     mastered,
     upcoming
   }
+}
+
+// ---------- 追问（即笔记） ----------
+
+export function addEntryChat(entryId: number, question: string, answer: string): EntryChat {
+  const info = db
+    .prepare('INSERT INTO entry_chats (entry_id, question, answer, created_at) VALUES (?, ?, ?, ?)')
+    .run(entryId, question, answer, nowIso())
+  return {
+    id: Number(info.lastInsertRowid),
+    entryId,
+    question,
+    answer,
+    createdAt: nowIso()
+  }
+}
+
+export function listEntryChats(entryId: number): EntryChat[] {
+  return db
+    .prepare('SELECT * FROM entry_chats WHERE entry_id = ? ORDER BY created_at, id')
+    .all(entryId) as unknown as EntryChat[]
+}
+
+export function deleteEntryChat(id: number): void {
+  db.prepare('DELETE FROM entry_chats WHERE id = ?').run(id)
+}
+
+// ---------- 目标词程序化加粗 ----------
+
+/** 在例句里给目标词（含常见屈折变化）加粗；已加粗的先剥离再统一加粗，可重复点击 */
+export function boldEntryTargets(id: number): Entry | null {
+  const entry = getEntryById(id)
+  if (!entry?.structured?.examples || !entry.structured.examples.length) return entry
+  const word = entry.text.trim()
+  if (!word || word.length > 40) return entry
+  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`\\b(${esc}(?:s|es|ed|d|ing)?)\\b`, 'gi')
+  const s: StructuredData = {
+    ...entry.structured,
+    examples: entry.structured.examples.map((ex) => ({
+      ...ex,
+      en: ex.en.replace(/\*\*/g, '').replace(re, '**$1**')
+    }))
+  }
+  return saveStructured(id, s)
 }
 
 // ---------- 工具 ----------

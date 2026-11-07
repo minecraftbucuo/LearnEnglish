@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { EntriesFilter, Entry, EntrySource, EntryType } from '@shared/types'
+import type { EntriesFilter, Entry, EntryChat, EntrySource, EntryType } from '@shared/types'
 import { fmtDateTime, isZhText, speak } from '../../utils'
 import { EntryImage } from '../components/EntryImage'
 import { EmText } from '../../components/EmText'
+import { Md } from '../../components/Md'
 
 type TypeFilter = EntryType | 'all'
 type SourceFilter = EntrySource | 'all'
@@ -130,7 +131,14 @@ function EntryDetail({
   onClose: () => void
 }): React.JSX.Element {
   const [note, setNote] = useState(entry.note)
+  const [chats, setChats] = useState<EntryChat[]>([])
+  const [chatQ, setChatQ] = useState('')
+  const [asking, setAsking] = useState(false)
+  const [askErr, setAskErr] = useState<string | null>(null)
   useEffect(() => setNote(entry.note), [entry.id, entry.note])
+  useEffect(() => {
+    void window.api.entryChatList(entry.id).then(setChats)
+  }, [entry.id])
 
   async function toggleStar(): Promise<void> {
     await window.api.entryToggleStar(entry.id)
@@ -151,6 +159,29 @@ function EntryDetail({
       await window.api.entrySetNote(entry.id, note)
       await onChanged()
     }
+  }
+  async function ask(): Promise<void> {
+    const q = chatQ.trim()
+    if (!q || asking) return
+    setAsking(true)
+    setAskErr(null)
+    try {
+      const pair = await window.api.entryChatAsk(entry.id, q)
+      setChats((cs) => [...cs, pair])
+      setChatQ('')
+    } catch (err) {
+      setAskErr(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAsking(false)
+    }
+  }
+  async function delChat(id: number): Promise<void> {
+    await window.api.entryChatDelete(id)
+    setChats((cs) => cs.filter((c) => c.id !== id))
+  }
+  async function boldTargets(): Promise<void> {
+    await window.api.entryBoldTargets(entry.id)
+    await onChanged()
   }
 
   const s = entry.structured
@@ -251,7 +282,18 @@ function EntryDetail({
 
         {s?.examples && s.examples.length > 0 && (
           <div>
-            <SectionTitle>例句</SectionTitle>
+            <div className="mb-1.5 mt-1 flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-500">例句</span>
+              {entry.type === 'word' && (
+                <button
+                  onClick={() => void boldTargets()}
+                  title="模型没加粗目标词时，点这里程序化补上"
+                  className="text-[11px] text-zinc-500 transition hover:text-teal-300"
+                >
+                  ✏️ 加粗目标词
+                </button>
+              )}
+            </div>
             <div className="space-y-2">
               {s.examples.map((ex, i) => (
                 <div key={i} className="text-[13px] leading-6">
@@ -313,6 +355,59 @@ function EntryDetail({
             </pre>
           </details>
         )}
+
+        <div>
+          <SectionTitle>追问 AI · 即笔记</SectionTitle>
+          <div className="space-y-2">
+            {chats.length === 0 && (
+              <div className="text-xs leading-5 text-zinc-600">
+                还没有追问。问点细节（搭配、辨析、例句仿写……），问答会保存在这里当笔记，问错了可单条删除。
+              </div>
+            )}
+            {chats.map((c) => (
+              <div
+                key={c.id}
+                className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1 select-text text-[12px] leading-5 text-teal-300">
+                    问：{c.question}
+                  </div>
+                  <button
+                    title="删除这条问答"
+                    onClick={() => void delChat(c.id)}
+                    className="shrink-0 text-zinc-600 transition hover:text-red-400"
+                  >
+                    🗑
+                  </button>
+                </div>
+                <div className="mt-1 select-text">
+                  <Md>{c.answer}</Md>
+                </div>
+              </div>
+            ))}
+          </div>
+          {askErr && <div className="mt-1.5 text-[11px] text-red-300">⚠️ {askErr}</div>}
+          <div className="mt-2 flex items-center gap-2">
+            <input
+              value={chatQ}
+              onChange={(e) => setChatQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) void ask()
+              }}
+              disabled={asking}
+              placeholder={asking ? '思考中…' : '问点细节，回车发送'}
+              className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-1.5 text-[13px] text-zinc-200 outline-none transition placeholder:text-zinc-600 focus:border-teal-500"
+            />
+            <button
+              onClick={() => void ask()}
+              disabled={asking || !chatQ.trim()}
+              className="shrink-0 rounded-lg bg-teal-600 px-3 py-1.5 text-[13px] font-medium text-white transition hover:bg-teal-500 disabled:opacity-40"
+            >
+              提问
+            </button>
+          </div>
+        </div>
 
         <div>
           <SectionTitle>我的笔记</SectionTitle>

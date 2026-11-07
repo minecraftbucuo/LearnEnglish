@@ -4,6 +4,7 @@ import type {
   AppSettings,
   EntriesFilter,
   Entry,
+  EntryChat,
   LookupStartPayload,
   ProviderConfig,
   ProviderTestResult,
@@ -77,6 +78,10 @@ export interface Api {
   entryToggleSuspend(id: number): Promise<Entry | null>
   entryDelete(id: number): Promise<void>
   entryImageData(id: number): Promise<string | null>
+  entryBoldTargets(id: number): Promise<Entry | null>
+  entryChatAsk(entryId: number, question: string): Promise<EntryChat>
+  entryChatList(entryId: number): Promise<EntryChat[]>
+  entryChatDelete(id: number): Promise<void>
 
   // ---- 复习 ----
   reviewQueue(): Promise<ReviewQueue>

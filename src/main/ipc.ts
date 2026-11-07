@@ -10,19 +10,23 @@ import type {
 } from '@shared/types'
 import {
   answer,
+  addEntryChat,
+  boldEntryTargets,
   deleteEntry,
+  deleteEntryChat,
   getEntryById,
   getFreePracticeQueue,
   getReviewQueue,
   getReviewStats,
   listEntries,
+  listEntryChats,
   markIntroduced,
   setNote,
   setSuspended,
   setStarred
 } from './db'
-import { getSettings, setSettings } from './settings'
-import { testProvider } from './ai'
+import { getActiveProvider, getSettings, setSettings } from './settings'
+import { chatOnce, testProvider } from './ai'
 import { registerShortcuts } from './shortcuts'
 import { broadcast, hidePopup, setQuitting, showMainWindow } from './windows'
 import {
@@ -70,6 +74,30 @@ export function registerIpc(): void {
       return null
     }
   })
+  ipcMain.handle(CH.ENTRY_BOLD_TARGETS, (_e, id: number) => boldEntryTargets(id))
+
+  // ---- 追问（即笔记） ----
+  ipcMain.handle(CH.ENTRY_CHAT_ASK, async (_e, entryId: number, question: string) => {
+    const q = question.trim()
+    if (!q) throw new Error('问题不能为空')
+    const entry = getEntryById(entryId)
+    if (!entry) throw new Error('词条不存在')
+    const provider = getActiveProvider()
+    if (!provider) throw new Error('尚未配置 AI 供应商，请打开设置页配置。')
+    const context = entry.structured ? JSON.stringify(entry.structured).slice(0, 900) : '（无）'
+    const answer = await chatOnce(provider, provider.chatModel, [
+      {
+        role: 'system',
+        content:
+          `你是一位耐心的英语老师。用户正在学习词条「${entry.text}」，已有的讲解要点：${context}。` +
+          '请针对用户的追问给出简短、准确的中文回答（不超过 150 字），直接回答，绝不反问。'
+      },
+      { role: 'user', content: q }
+    ])
+    return addEntryChat(entryId, q, answer.trim() || '（模型未返回内容）')
+  })
+  ipcMain.handle(CH.ENTRY_CHAT_LIST, (_e, entryId: number) => listEntryChats(entryId))
+  ipcMain.handle(CH.ENTRY_CHAT_DELETE, (_e, id: number) => deleteEntryChat(id))
 
   // ---- 复习 ----
   ipcMain.handle(CH.REVIEW_QUEUE, () => getReviewQueue(getSettings().dailyNew))

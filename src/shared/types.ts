@@ -64,6 +64,15 @@ export interface ReviewCard {
   isNew: boolean
 }
 
+/** 生词本里的追问（即笔记）：一对问答，可单条删除 */
+export interface EntryChat {
+  id: number
+  entryId: number
+  question: string
+  answer: string
+  createdAt: string
+}
+
 export interface ReviewQueue {
   due: ReviewCard[]
   newCards: ReviewCard[]

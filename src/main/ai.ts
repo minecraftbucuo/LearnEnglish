@@ -113,6 +113,41 @@ export async function* streamChat(opts: StreamOptions): AsyncGenerator<string> {
   }
 }
 
+/** 非流式单轮问答（生词本追问等短交互用） */
+export async function chatOnce(
+  provider: ProviderConfig,
+  model: string,
+  messages: ChatMessage[],
+  maxTokens = 400
+): Promise<string> {
+  const url = `${trimBaseURL(provider.baseURL)}/chat/completions`
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${provider.apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.3,
+      max_tokens: maxTokens,
+      ...(provider.disableThinking ? { thinking: { type: 'disabled' } } : {})
+    }),
+    signal: AbortSignal.timeout(60_000)
+  })
+  if (!res.ok) {
+    const body = (await res.text().catch(() => '')).slice(0, 300)
+    throw new Error(`API ${res.status}：${body || '请求失败'}`)
+  }
+  const j = (await res.json()) as {
+    choices?: { message?: { content?: string } }[]
+    error?: { message?: string }
+  }
+  if (j.error) throw new Error(j.error.message ?? 'API 错误')
+  return j.choices?.[0]?.message?.content ?? ''
+}
+
 /** 非流式连通性测试 */
 export async function testProvider(
   provider: ProviderConfig,
