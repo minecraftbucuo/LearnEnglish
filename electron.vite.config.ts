@@ -1,4 +1,5 @@
 import { resolve } from 'path'
+import pkg from './package.json' with { type: 'json' }
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
