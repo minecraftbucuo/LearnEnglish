@@ -130,12 +130,10 @@ function EntryDetail({
   onChanged: () => Promise<void> | void
   onClose: () => void
 }): React.JSX.Element {
-  const [note, setNote] = useState(entry.note)
   const [chats, setChats] = useState<EntryChat[]>([])
   const [chatQ, setChatQ] = useState('')
   const [asking, setAsking] = useState(false)
   const [askErr, setAskErr] = useState<string | null>(null)
-  useEffect(() => setNote(entry.note), [entry.id, entry.note])
   useEffect(() => {
     void window.api.entryChatList(entry.id).then(setChats)
   }, [entry.id])
@@ -153,12 +151,6 @@ function EntryDetail({
     await window.api.entryDelete(entry.id)
     onClose()
     await onChanged()
-  }
-  async function saveNote(): Promise<void> {
-    if (note !== entry.note) {
-      await window.api.entrySetNote(entry.id, note)
-      await onChanged()
-    }
   }
   async function ask(): Promise<void> {
     const q = chatQ.trim()
@@ -357,11 +349,11 @@ function EntryDetail({
         )}
 
         <div>
-          <SectionTitle>追问 AI · 即笔记</SectionTitle>
+          <SectionTitle>追问 AI</SectionTitle>
           <div className="space-y-2">
             {chats.length === 0 && (
               <div className="text-xs leading-5 text-zinc-600">
-                还没有追问。问点细节（搭配、辨析、例句仿写……），问答会保存在这里当笔记，问错了可单条删除。
+                还没有追问。问点细节（搭配、辨析、例句仿写……），问答会记录在这里，可单条删除。
               </div>
             )}
             {chats.map((c) => (
@@ -409,17 +401,6 @@ function EntryDetail({
           </div>
         </div>
 
-        <div>
-          <SectionTitle>我的笔记</SectionTitle>
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            onBlur={() => void saveNote()}
-            rows={3}
-            placeholder="记录自己的理解、联想、易错点…（失焦自动保存）"
-            className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-800/40 px-3 py-2 text-[13px] leading-6 text-zinc-200 outline-none transition placeholder:text-zinc-600 focus:border-teal-500"
-          />
-        </div>
       </div>
     </aside>
   )
