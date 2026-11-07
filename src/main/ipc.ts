@@ -12,6 +12,7 @@ import {
   answer,
   deleteEntry,
   getEntryById,
+  getFreePracticeQueue,
   getReviewQueue,
   getReviewStats,
   listEntries,
@@ -72,6 +73,7 @@ export function registerIpc(): void {
 
   // ---- 复习 ----
   ipcMain.handle(CH.REVIEW_QUEUE, () => getReviewQueue(getSettings().dailyNew))
+  ipcMain.handle(CH.REVIEW_FREE_QUEUE, () => getFreePracticeQueue())
   ipcMain.handle(
     CH.REVIEW_ANSWER,
     (_e, entryId: number, rating: Rating, mode: ReviewMode) => answer(entryId, rating, mode)

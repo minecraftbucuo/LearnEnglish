@@ -33,6 +33,7 @@ const api: Api = {
   entryImageData: (id) => ipcRenderer.invoke(CH.ENTRY_IMAGE_DATA, id),
 
   reviewQueue: () => ipcRenderer.invoke(CH.REVIEW_QUEUE),
+  freeQueue: () => ipcRenderer.invoke(CH.REVIEW_FREE_QUEUE),
   reviewAnswer: (entryId, rating, mode) => ipcRenderer.invoke(CH.REVIEW_ANSWER, entryId, rating, mode),
   reviewIntroduced: (entryId) => ipcRenderer.invoke(CH.REVIEW_INTRODUCED, entryId),
   reviewStats: () => ipcRenderer.invoke(CH.REVIEW_STATS),

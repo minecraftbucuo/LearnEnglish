@@ -25,6 +25,7 @@ export const CH = {
   ENTRY_DELETE: 'entry:delete',
   ENTRY_IMAGE_DATA: 'entry:imageData',
   REVIEW_QUEUE: 'review:queue',
+  REVIEW_FREE_QUEUE: 'review:freeQueue',
   REVIEW_ANSWER: 'review:answer',
   REVIEW_INTRODUCED: 'review:introduced',
   REVIEW_STATS: 'review:stats',

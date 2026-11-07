@@ -387,6 +387,19 @@ export function getReviewQueue(dailyNew: number): {
   }
 }
 
+/** 自由练习队列：所有划重点且未暂停的卡片随机抽取，不区分是否到期（不计入调度） */
+export function getFreePracticeQueue(limit = 50): ReviewCard[] {
+  const rows = db
+    .prepare(
+      `SELECT e.*, r.ease, r.interval_days, r.due_at, r.reps, r.lapses, r.introduced_at, r.last_reviewed_at
+       FROM entries e JOIN review_state r ON r.entry_id = e.id
+       WHERE e.is_starred = 1 AND e.suspended = 0
+       ORDER BY RANDOM() LIMIT ?`
+    )
+    .all(limit) as (EntryRow & ReviewRow)[]
+  return rows.map((row) => ({ entry: rowToEntry(row), state: rowToReview(row)!, isNew: false }))
+}
+
 export function getReviewStats(): ReviewStats {
   const now = nowIso()
   const totalEntries = (db.prepare('SELECT COUNT(*) c FROM entries').get() as { c: number }).c

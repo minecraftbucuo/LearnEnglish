@@ -8,6 +8,8 @@ type Phase = 'idle' | 'session' | 'done'
 
 export function ReviewPage(): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>('idle')
+  const [freePractice, setFreePractice] = useState(false)
+  const [freeDoneCount, setFreeDoneCount] = useState<number | null>(null)
   const [queue, setQueue] = useState<ReviewCard[]>([])
   const [idx, setIdx] = useState(0)
   const [result, setResult] = useState({ answered: 0, again: 0 })
@@ -39,17 +41,37 @@ export function ReviewPage(): React.JSX.Element {
     setQueue(cards)
     setIdx(0)
     setResult({ answered: 0, again: 0 })
+    setFreePractice(false)
+    setFreeDoneCount(null)
+    setPhase('session')
+  }
+
+  async function startFree(): Promise<void> {
+    const cards = await window.api.freeQueue()
+    if (!cards.length) return
+    setQueue(cards)
+    setIdx(0)
+    setResult({ answered: 0, again: 0 })
+    setFreePractice(true)
+    setFreeDoneCount(null)
     setPhase('session')
   }
 
   async function handleAnswer(rating: 1 | 2 | 3 | 4, mode: 'recall' | 'spelling'): Promise<void> {
     const card = queue[idx]
     if (!card) return
-    await window.api.reviewAnswer(card.entry.id, rating, mode)
+    // 自由练习不计入调度与统计
+    if (!freePractice) await window.api.reviewAnswer(card.entry.id, rating, mode)
     setResult((r) => ({ answered: r.answered + 1, again: r.again + (rating === 1 ? 1 : 0) }))
     if (idx + 1 >= queue.length) {
-      setPhase('done')
-      await load()
+      if (freePractice) {
+        setFreeDoneCount(result.answered + 1)
+        setPhase('idle')
+        await load()
+      } else {
+        setPhase('done')
+        await load()
+      }
     } else {
       setIdx((i) => i + 1)
     }
@@ -71,6 +93,11 @@ export function ReviewPage(): React.JSX.Element {
             </div>
           </div>
         )}
+        {freeDoneCount !== null && (
+          <div className="rounded-lg bg-violet-500/10 px-4 py-2 text-xs text-violet-300">
+            刚完成自由练习 {freeDoneCount} 张（不计入复习进度，不影响排期）
+          </div>
+        )}
         <div className="flex gap-4">
           <div className="w-36 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30">
             <div className="text-3xl font-bold text-teal-400">{dueCount}</div>
@@ -85,13 +112,23 @@ export function ReviewPage(): React.JSX.Element {
             <div className="mt-1 text-xs text-zinc-500">今日已学新卡</div>
           </div>
         </div>
-        <button
-          onClick={() => void start()}
-          disabled={dueCount + newRemaining === 0}
-          className="rounded-xl bg-teal-600 px-10 py-3 text-sm font-medium text-white shadow transition hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {finished ? '再来一轮' : '开始复习'}
-        </button>
+        <div className="flex flex-col items-center gap-3">
+          <button
+            onClick={() => void start()}
+            disabled={dueCount + newRemaining === 0}
+            className="rounded-xl bg-teal-600 px-10 py-3 text-sm font-medium text-white shadow transition hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {finished ? '再来一轮' : '开始复习'}
+          </button>
+          <button
+            onClick={() => void startFree()}
+            disabled={(stats?.starred ?? 0) === 0}
+            className="rounded-lg border border-violet-500/40 px-5 py-1.5 text-xs text-violet-300 transition hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+            title="随机抽取全部重点卡片练习，不改变复习排期"
+          >
+            🎲 自由练习 · 随机 {stats?.starred ?? 0} 张（不计入进度）
+          </button>
+        </div>
         {dueCount + newRemaining === 0 && (
           <div className="max-w-md text-center text-xs leading-6 text-zinc-500">
             {(stats?.newToday ?? 0) > 0 || (stats?.reviewedToday ?? 0) > 0 ? (

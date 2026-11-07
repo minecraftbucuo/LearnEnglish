@@ -8,6 +8,7 @@ import type {
   ProviderConfig,
   ProviderTestResult,
   Rating,
+  ReviewCard,
   ReviewMode,
   ReviewQueue,
   ReviewState,
@@ -79,6 +80,7 @@ export interface Api {
 
   // ---- 复习 ----
   reviewQueue(): Promise<ReviewQueue>
+  freeQueue(): Promise<ReviewCard[]>
   reviewAnswer(entryId: number, rating: Rating, mode: ReviewMode): Promise<ReviewState | null>
   reviewIntroduced(entryId: number): Promise<void>
   reviewStats(): Promise<ReviewStats>
