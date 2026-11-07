@@ -162,7 +162,7 @@ export function SettingsPage(): React.JSX.Element {
         {/* 提示词微调 */}
         <Section
           title="提示词自定义"
-          desc="文本框显示的是当前生效的模板（未改过即为内置默认）。注意保留结尾的 <!--AI_DATA {...}--> 结构化输出约定，划重点和复习卡片依赖它。"
+          desc="自定义 AI 的讲解风格与结构。输出格式要求由程序自动附加，随便改不会弄坏划重点和复习功能；未改过即显示内置默认。"
         >
           <div className="space-y-4">
             {PROMPT_KEYS.map(([key, label]) => {
