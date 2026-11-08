@@ -100,6 +100,16 @@ export function LibraryPage({
     void load()
   }, [load])
 
+  // 词条有增删改（弹窗查词/划重点/复习作答等）→ 实时刷新列表与选中详情
+  useEffect(
+    () =>
+      window.api.onEntriesChanged(() => {
+        void load()
+        void refreshSelected()
+      }),
+    [load, selected]
+  )
+
   async function refreshSelected(): Promise<void> {
     if (!selected) return
     const fresh = await window.api.entryGet(selected.id)

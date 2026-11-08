@@ -10,6 +10,7 @@ export const CH = {
   OVERLAY_START: 'overlay:start',
   MAIN_NAVIGATE: 'main:navigate', // 主窗口切页（设置 / 生词本详情等）
   SETTINGS_CHANGED: 'settings:changed',
+  ENTRIES_CHANGED: 'entries:changed', // 词条有增删改（查询落库/划重点/手动操作），生词本等订阅刷新
 
   // 渲染进程 -> 主进程 invoke
   AI_START: 'ai:start',

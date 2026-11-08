@@ -17,6 +17,7 @@ const api: Api = {
   onAiError: (cb) => subscribe(CH.AI_ERROR, cb as never),
   onMainNavigate: (cb) => subscribe(CH.MAIN_NAVIGATE, cb as never),
   onSettingsChanged: (cb) => subscribe(CH.SETTINGS_CHANGED, cb as never),
+  onEntriesChanged: (cb) => subscribe(CH.ENTRIES_CHANGED, cb as never),
 
   aiStart: (lookupId, force = false) => ipcRenderer.invoke(CH.AI_START, lookupId, force),
   nestedLookup: (text) => ipcRenderer.invoke(CH.AI_NESTED_LOOKUP, text),

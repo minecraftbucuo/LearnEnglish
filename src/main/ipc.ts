@@ -62,14 +62,22 @@ export function registerIpc(): void {
   ipcMain.handle(CH.ENTRY_TOGGLE_STAR, (_e, id: number) => {
     const entry = getEntryById(id)
     if (!entry) return null
-    return setStarred(id, !entry.isStarred)
+    const updated = setStarred(id, !entry.isStarred)
+    broadcast(CH.ENTRIES_CHANGED)
+    return updated
   })
   ipcMain.handle(CH.ENTRY_TOGGLE_SUSPEND, (_e, id: number) => {
     const entry = getEntryById(id)
     if (!entry) return null
-    return setSuspended(id, !entry.suspended)
+    const updated = setSuspended(id, !entry.suspended)
+    broadcast(CH.ENTRIES_CHANGED)
+    return updated
   })
-  ipcMain.handle(CH.ENTRY_DELETE, (_e, id: number) => deleteEntry(id))
+  ipcMain.handle(CH.ENTRY_DELETE, (_e, id: number) => {
+    const result = deleteEntry(id)
+    broadcast(CH.ENTRIES_CHANGED)
+    return result
+  })
 
   // ---- 追问（流式，边生成边推送） ----
   ipcMain.handle(
@@ -135,7 +143,12 @@ export function registerIpc(): void {
   ipcMain.handle(CH.REVIEW_PRACTICE_QUEUE, () => getPracticeQueue())
   ipcMain.handle(
     CH.REVIEW_ANSWER,
-    (_e, entryId: number, rating: Rating, mode: ReviewMode) => answer(entryId, rating, mode)
+    (_e, entryId: number, rating: Rating, mode: ReviewMode) => {
+      const result = answer(entryId, rating, mode)
+      // 学习状态变化影响生词本的状态筛选与徽标
+      broadcast(CH.ENTRIES_CHANGED)
+      return result
+    }
   )
   ipcMain.handle(CH.REVIEW_INTRODUCED, (_e, entryId: number) => markIntroduced(entryId))
   ipcMain.handle(CH.REVIEW_STATS, () => getReviewStats())

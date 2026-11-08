@@ -78,6 +78,8 @@ export interface Api {
   onAiError(cb: (p: AiErrorPayload) => void): Unsubscribe
   onMainNavigate(cb: (tab: string) => void): Unsubscribe
   onSettingsChanged(cb: (s: AppSettings) => void): Unsubscribe
+  /** 词条有增删改（查询落库/划重点/手动操作等） */
+  onEntriesChanged(cb: () => void): Unsubscribe
 
   // ---- AI 查询 ----
   aiStart(lookupId: string, force?: boolean): Promise<void>
