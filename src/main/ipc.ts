@@ -19,7 +19,6 @@ import {
   listEntries,
   listEntryChats,
   markIntroduced,
-  setNote,
   setSuspended,
   setStarred
 } from './db'
@@ -33,7 +32,7 @@ const chatStreams = new Map<
   { entryId: number; question: string; controller: AbortController; sender: Electron.WebContents }
 >()
 import { registerShortcuts } from './shortcuts'
-import { broadcast, hidePopup, setQuitting, showMainWindow } from './windows'
+import { broadcast, hidePopup, showMainWindow } from './windows'
 import {
   abortAi,
   abortRelookup,
@@ -60,7 +59,6 @@ export function registerIpc(): void {
   // ---- 生词本 ----
   ipcMain.handle(CH.ENTRIES_LIST, (_e, filter: EntriesFilter) => listEntries(filter))
   ipcMain.handle(CH.ENTRY_GET, (_e, id: number) => getEntryById(id))
-  ipcMain.handle(CH.ENTRY_SET_NOTE, (_e, id: number, note: string) => setNote(id, note))
   ipcMain.handle(CH.ENTRY_TOGGLE_STAR, (_e, id: number) => {
     const entry = getEntryById(id)
     if (!entry) return null
@@ -168,8 +166,4 @@ export function registerIpc(): void {
   ipcMain.handle(CH.APP_HIDE_POPUP, () => hidePopup())
   ipcMain.handle(CH.APP_LOOKUP_TEXT, (_e, text: string) => lookupTextFromRenderer(text))
   ipcMain.handle(CH.APP_OPEN_DATA_DIR, () => void shell.openPath(app.getPath('userData')))
-  ipcMain.handle(CH.APP_QUIT, () => {
-    setQuitting(true)
-    app.quit()
-  })
 }

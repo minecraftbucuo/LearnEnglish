@@ -89,7 +89,6 @@ export interface Api {
   // ---- 生词本 ----
   entriesList(filter?: EntriesFilter): Promise<Entry[]>
   entryGet(id: number): Promise<Entry | null>
-  entrySetNote(id: number, note: string): Promise<Entry | null>
   entryToggleStar(id: number): Promise<Entry | null>
   entryToggleSuspend(id: number): Promise<Entry | null>
   entryDelete(id: number): Promise<void>
@@ -128,5 +127,4 @@ export interface Api {
   hidePopup(): Promise<void>
   lookupText(text: string): Promise<void>
   openDataDir(): Promise<void>
-  quit(): Promise<void>
 }

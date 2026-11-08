@@ -363,11 +363,6 @@ export function setSuspended(id: number, suspended: boolean): Entry | null {
   return getEntryById(id)
 }
 
-export function setNote(id: number, note: string): Entry | null {
-  db.prepare('UPDATE entries SET note = ? WHERE id = ?').run(note, id)
-  return getEntryById(id)
-}
-
 export function deleteEntry(id: number): void {
   db.prepare('DELETE FROM review_logs WHERE entry_id = ?').run(id)
   db.prepare('DELETE FROM review_state WHERE entry_id = ?').run(id)
@@ -420,7 +415,6 @@ export function answer(entryId: number, rating: Rating, mode: ReviewMode): Revie
 export function getReviewQueue(dailyNew: number): {
   due: ReviewCard[]
   newCards: ReviewCard[]
-  dueCount: number
   newRemaining: number
 } {
   const now = nowIso()
@@ -461,7 +455,6 @@ export function getReviewQueue(dailyNew: number): {
   return {
     due: dueAll.map((r) => toCard(r, false)),
     newCards,
-    dueCount: dueAll.length,
     newRemaining: newCards.length
   }
 }
@@ -481,7 +474,6 @@ export function getPracticeQueue(): ReviewCard[] {
 }
 
 export function getReviewStats(): ReviewStats {
-  const now = nowIso()
   const totalEntries = (db.prepare('SELECT COUNT(*) c FROM entries').get() as { c: number }).c
   const starred = (
     db.prepare('SELECT COUNT(*) c FROM entries WHERE is_starred = 1').get() as { c: number }
@@ -499,11 +491,6 @@ export function getReviewStats(): ReviewStats {
     (r) => r.reps > 0 || r.lapses > 0 || r.introduced_at != null
   ).length
 
-  const dueNow = reviewRows.filter(
-    (r) =>
-      (r.reps > 0 && r.due_at <= now) ||
-      (r.reps === 0 && (r.lapses > 0 || r.introduced_at != null))
-  ).length
   const newToday = reviewRows.filter(
     (r) => r.introduced_at && isSameLocalDay(r.introduced_at, Date.now())
   ).length
@@ -585,7 +572,6 @@ export function getReviewStats(): ReviewStats {
   return {
     totalEntries,
     starred,
-    dueNow,
     reviewedToday,
     newToday,
     streakDays: streak,
@@ -625,7 +611,7 @@ export function deleteEntryChat(id: number): void {
 
 // ---------- 工具 ----------
 
-export function localDateStr(input: string | number | Date): string {
+function localDateStr(input: string | number | Date): string {
   const d = new Date(input)
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')

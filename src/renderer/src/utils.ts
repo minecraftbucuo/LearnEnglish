@@ -1,4 +1,3 @@
-import type { StructuredData } from '@shared/types'
 import { isZhContent } from '@shared/text'
 
 /** 文本是否为中文（决定查词方向与朗读可用性） */
@@ -48,10 +47,3 @@ export function fmtBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(2)} MB`
 }
 
-export function structuredSummary(s: StructuredData | null): string {
-  if (!s) return ''
-  const parts: string[] = []
-  if (s.definitionZh) parts.push(s.definitionZh)
-  if (s.translation) parts.push(s.translation)
-  return parts.join('；')
-}

@@ -81,7 +81,6 @@ export interface EntryChat {
 export interface ReviewQueue {
   due: ReviewCard[]
   newCards: ReviewCard[]
-  dueCount: number
   newRemaining: number // 受每日新卡上限约束后今天还能学的新卡数
 }
 
@@ -97,7 +96,6 @@ export interface DailyActivity {
 export interface ReviewStats {
   totalEntries: number
   starred: number
-  dueNow: number
   reviewedToday: number
   newToday: number
   streakDays: number

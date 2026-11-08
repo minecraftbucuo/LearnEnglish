@@ -26,7 +26,6 @@ const api: Api = {
 
   entriesList: (filter) => ipcRenderer.invoke(CH.ENTRIES_LIST, filter),
   entryGet: (id) => ipcRenderer.invoke(CH.ENTRY_GET, id),
-  entrySetNote: (id, note) => ipcRenderer.invoke(CH.ENTRY_SET_NOTE, id, note),
   entryToggleStar: (id) => ipcRenderer.invoke(CH.ENTRY_TOGGLE_STAR, id),
   entryToggleSuspend: (id) => ipcRenderer.invoke(CH.ENTRY_TOGGLE_SUSPEND, id),
   entryDelete: (id) => ipcRenderer.invoke(CH.ENTRY_DELETE, id),
@@ -63,7 +62,6 @@ const api: Api = {
   hidePopup: () => ipcRenderer.invoke(CH.APP_HIDE_POPUP),
   lookupText: (text) => ipcRenderer.invoke(CH.APP_LOOKUP_TEXT, text),
   openDataDir: () => ipcRenderer.invoke(CH.APP_OPEN_DATA_DIR),
-  quit: () => ipcRenderer.invoke(CH.APP_QUIT)
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -19,7 +19,6 @@ export const CH = {
   STAR_CURRENT: 'star:current',
   ENTRIES_LIST: 'entries:list',
   ENTRY_GET: 'entry:get',
-  ENTRY_SET_NOTE: 'entry:setNote',
   ENTRY_TOGGLE_STAR: 'entry:toggleStar',
   ENTRY_TOGGLE_SUSPEND: 'entry:toggleSuspend',
   ENTRY_DELETE: 'entry:delete',
@@ -50,5 +49,4 @@ export const CH = {
   APP_HIDE_POPUP: 'app:hidePopup',
   APP_OPEN_DATA_DIR: 'app:openDataDir',
   APP_LOOKUP_TEXT: 'app:lookupText',
-  APP_QUIT: 'app:quit'
 } as const

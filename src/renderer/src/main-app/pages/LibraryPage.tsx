@@ -302,7 +302,7 @@ function EntryDetail({
           r && r.relookupId === relookupId ? { ...r, answer: r.answer + delta } : r
         )
       }),
-      window.api.onRelookupDone(({ relookupId, entry: updated, markdown }) => {
+      window.api.onRelookupDone(({ relookupId, entry: updated }) => {
         setRelookup((r) => (r && r.relookupId === relookupId ? null : r))
         // 只就地刷新当前查看的词条；截图合并等场景 id 已变，切回时自然加载
         if (updated.id === entryIdRef.current) void onChangedRef.current()
