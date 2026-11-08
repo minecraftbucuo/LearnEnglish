@@ -516,6 +516,38 @@ export function getReviewStats(): ReviewStats {
 
   const mastered = reviewRows.filter((r) => r.reps > 0 && r.interval_days >= 21).length
 
+  // 掌握度分布：已掌握(≥21天) / 巩固中(1~20天) / 刚学(已引入未毕业)
+  const learningCount = reviewRows.filter((r) => r.reps > 0 && r.interval_days < 21).length
+  const freshCount = reviewRows.filter((r) => r.reps === 0 && r.introduced_at != null).length
+
+  // 近一年答题记录：热力图（52 周）与近 30 天柱状图共用一份数据
+  const since = new Date()
+  since.setDate(since.getDate() - 364)
+  since.setHours(0, 0, 0, 0)
+  const logs = db
+    .prepare('SELECT rating, reviewed_at FROM review_logs WHERE reviewed_at >= ?')
+    .all(since.toISOString()) as { rating: number; reviewed_at: string }[]
+  const byDay = new Map<string, { total: number; known: number; fuzzy: number; forgot: number }>()
+  for (const l of logs) {
+    const ds = localDateStr(l.reviewed_at)
+    const rec = byDay.get(ds) ?? { total: 0, known: 0, fuzzy: 0, forgot: 0 }
+    rec.total++
+    if (l.rating === 3) rec.known++
+    else if (l.rating === 2) rec.fuzzy++
+    else rec.forgot++
+    byDay.set(ds, rec)
+  }
+  const daily = [] as import('@shared/types').DailyActivity[]
+  const heatmap = [] as { date: string; count: number }[]
+  for (let i = 364; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const ds = localDateStr(d)
+    const rec = byDay.get(ds) ?? { total: 0, known: 0, fuzzy: 0, forgot: 0 }
+    heatmap.push({ date: ds, count: rec.total })
+    if (i < 30) daily.push({ date: ds, ...rec })
+  }
+
   // 连续打卡：从今天（或昨天）往前数连续有复习记录的天数
   const days = new Set(
     (
@@ -559,6 +591,9 @@ export function getReviewStats(): ReviewStats {
     streakDays: streak,
     mastered,
     learned,
+    daily,
+    heatmap,
+    buckets: { mastered, learning: learningCount, fresh: freshCount },
     upcoming
   }
 }

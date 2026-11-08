@@ -66,6 +66,11 @@ export function createMainWindow(): BrowserWindow {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+  // 渲染层报错转发到主进程日志（渲染层崩溃表现为整窗黑屏，没有这行就没法排查）
+  mainWindow.webContents.on('console-message', (e) => {
+    if (e.level === 'warning' || e.level === 'error')
+      console.log(`[renderer:${e.level}] ${e.message} (${e.sourceId}:${e.lineNumber})`)
+  })
   void mainWindow.loadURL(rendererUrl('index.html'))
   return mainWindow
 }

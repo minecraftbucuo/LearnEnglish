@@ -13,6 +13,9 @@ import {
 import { initTray, destroyTray } from './tray'
 
 app.setAppUserModelId('com.learnenglish.desktop')
+// 禁用 GPU 加速：纯 2D 界面用软件渲染足够，避免远程桌面/虚拟机/老驱动下
+// CSS/SVG 滤镜触发合成器崩溃把整个窗口渲成黑屏
+app.disableHardwareAcceleration()
 
 // 单实例：再次启动时唤起主窗口
 const gotLock = app.requestSingleInstanceLock()

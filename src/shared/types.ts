@@ -85,6 +85,15 @@ export interface ReviewQueue {
   newRemaining: number // 受每日新卡上限约束后今天还能学的新卡数
 }
 
+/** 单日答题活动（按自评档拆分） */
+export interface DailyActivity {
+  date: string // 本地日期 YYYY-MM-DD
+  total: number
+  known: number // 认识
+  fuzzy: number // 模糊
+  forgot: number // 不认识
+}
+
 export interface ReviewStats {
   totalEntries: number
   starred: number
@@ -94,6 +103,9 @@ export interface ReviewStats {
   streakDays: number
   mastered: number
   learned: number // 已接触过的识记卡数（巩固轮可选范围）
+  daily: DailyActivity[] // 近 30 天每日答题（缺的天补 0）
+  heatmap: { date: string; count: number }[] // 近 15 周每日答题次数
+  buckets: { mastered: number; learning: number; fresh: number } // 掌握(≥21天)/巩固中(1~20天)/刚学(已引入)
   upcoming: { date: string; count: number }[] // 未来 7 天（本地日期）
 }
 
