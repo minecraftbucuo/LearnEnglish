@@ -149,7 +149,7 @@ export async function confirmScreenshot(rect: {
     popupSend(CH.LOOKUP_START, {
       lookupId: preId,
       text: '',
-      source: 'selection',
+      source: 'screenshot',
       entryId: null,
       isStarred: false,
       hasStructured: false,
@@ -162,7 +162,8 @@ export async function confirmScreenshot(rect: {
       popupSend(CH.LOOKUP_FAILED, { lookupId: preId })
       return
     }
-    startLookup({ text, source: 'selection' })
+    // 转出的文字按普通查询链路走，来源记为 screenshot 保留出处
+    startLookup({ text, source: 'screenshot' })
   } catch (err) {
     console.error('[lookup] 截图确认失败:', err)
   }

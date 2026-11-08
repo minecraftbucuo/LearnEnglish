@@ -1,7 +1,7 @@
 // 主进程与渲染进程共享的类型定义
 
 export type EntryType = 'word' | 'sentence'
-export type EntrySource = 'selection' | 'manual'
+export type EntrySource = 'selection' | 'screenshot' | 'manual'
 export type Rating = 1 | 2 | 3 | 4 // 忘记 / 困难 / 良好 / 简单
 export type ReviewMode = 'recall' | 'spelling'
 

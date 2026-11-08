@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { EntriesFilter, Entry, EntryChat, EntrySource, EntryType } from '@shared/types'
+import type { EntriesFilter, Entry, EntryChat, EntryType } from '@shared/types'
 import { fmtDateTime, isZhText, speak } from '../../utils'
 import { EmText } from '../../components/EmText'
 import { Md } from '../../components/Md'
 
 type TypeFilter = EntryType | 'all'
-type SourceFilter = EntrySource | 'all'
 
 export function LibraryPage(): React.JSX.Element {
   const [entries, setEntries] = useState<Entry[]>([])
@@ -42,19 +41,17 @@ export function LibraryPage(): React.JSX.Element {
   }, [])
   const [query, setQuery] = useState('')
   const [type, setType] = useState<TypeFilter>('all')
-  const [source, setSource] = useState<SourceFilter>('all')
   const [starredOnly, setStarredOnly] = useState(false)
 
   const load = useCallback(async (): Promise<void> => {
     const filter: EntriesFilter = {
       query: query.trim() || undefined,
       type,
-      source,
       starredOnly,
       limit: 300
     }
     setEntries(await window.api.entriesList(filter))
-  }, [query, type, source, starredOnly])
+  }, [query, type, starredOnly])
 
   useEffect(() => {
     void load()
@@ -89,12 +86,6 @@ export function LibraryPage(): React.JSX.Element {
             {(['all', 'word', 'sentence'] as TypeFilter[]).map((t) => (
               <button key={t} className={chip(type === t)} onClick={() => setType(t)}>
                 {t === 'all' ? '全部' : t === 'word' ? '单词' : '句子'}
-              </button>
-            ))}
-            <span className="mx-1 h-4 w-px bg-zinc-800" />
-            {(['all', 'selection'] as SourceFilter[]).map((s) => (
-              <button key={s} className={chip(source === s)} onClick={() => setSource(s)}>
-                {s === 'all' ? '全部来源' : '选中查词'}
               </button>
             ))}
             <span className="mx-1 h-4 w-px bg-zinc-800" />
