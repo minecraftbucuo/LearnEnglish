@@ -9,8 +9,8 @@ Windows 桌面英语学习工具：**全局快捷键查词 → AI 讲解 → 一
   - 句子：中文翻译、逐词精讲、语法结构分析
   - 弹窗内可继续追问；`Esc` 关闭；`Ctrl+S` 划入重点
 - **截图查询** `Alt+X`：框选屏幕任意区域，视觉模型 OCR 后按词/句格式讲解
-- **生词本** `Alt+E`：搜索、筛选（词/句/来源/重点）、笔记、朗读、暂停复习
-- **复习**（Anki 同款 SM-2 间隔重复）：卡片翻转 + 四档自评（忘记/困难/良好/简单）、每日新卡上限、拼写默写模式、连续打卡与统计
+- **生词本** `Alt+E`：搜索、筛选（词/句/重点）、笔记、朗读、暂停复习
+- **复习**（Anki 同款 SM-2 间隔重复）：开始前选 识记（看词忆义）/ 拼写（看义写词）模式，例句挖空提示，三档自评（认识/模糊/不认识），不认识的卡本轮队尾重现，每日新卡上限、连续打卡与统计
 - **设置**：多套 OpenAI 兼容 API 配置（智谱 / 豆包 / DeepSeek / Kimi / OpenAI 预设）、快捷键自定义、提示词微调
 
 ## 开发
@@ -32,6 +32,6 @@ Electron 37 + electron-vite + React 19 + TypeScript + Tailwind CSS 4 + better-sq
 ## 数据位置
 
 - 数据库：`%APPDATA%\LearnEnglish\learn-english.db`
-- 截图与配置：`%APPDATA%\LearnEnglish\`（`images/`、`config.json`）
+- 配置：`%APPDATA%\LearnEnglish\`（`config.json`、`ui-prefs.json`）
 
 AI API Key 仅保存在本机 `config.json`，不会上传。
