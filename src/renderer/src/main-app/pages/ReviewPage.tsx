@@ -32,7 +32,7 @@ export function ReviewPage({
   const [phase, setPhase] = useState<Phase>('idle')
   const [mode, setMode] = useState<ReviewMode>('recall')
   // 复习/巩固不写排期（学过就练，随时可练）
-  const [drilling, setDrilling] = useState(false)
+  const [practice, setPractice] = useState(false)
   const [doneCount, setDoneCount] = useState<number | null>(null)
   const [queue, setQueue] = useState<SessionCard[]>([])
   const [idx, setIdx] = useState(0)
@@ -42,6 +42,9 @@ export function ReviewPage({
   const [loading, setLoading] = useState(true)
   const [queueInfo, setQueueInfo] = useState<ReviewQueue | null>(null)
   const [stats, setStats] = useState<ReviewStats | null>(null)
+  // 会话内作答的并发防护（ref 读到的一定是最新 phase，供异步回调判断）
+  const answeringRef = useRef(false)
+  const phaseRef = useRef<Phase>('idle')
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -54,6 +57,10 @@ export function ReviewPage({
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    phaseRef.current = phase
+  }, [phase])
 
   // 从其他页切回来：空闲状态刷新数据；会话进行中不打断
   useEffect(() => {
@@ -75,7 +82,7 @@ export function ReviewPage({
       return
     }
     setMode('recall')
-    setDrilling(false)
+    setPractice(false)
     setDoneCount(null)
     resetSession(q.newCards)
     setPhase('session')
@@ -91,7 +98,7 @@ export function ReviewPage({
     }))
     if (!cards.length) return
     setMode(m)
-    setDrilling(true)
+    setPractice(true)
     setDoneCount(null)
     resetSession(cards)
     setPhase('session')
@@ -99,36 +106,44 @@ export function ReviewPage({
 
   async function handleAnswer(rating: Rating, answerMode: ReviewMode): Promise<void> {
     const card = queue[idx]
-    if (!card) return
-    // 计划只认第一次真实作答（那时记忆水平是真实的）；巩固轮一律不写排期
-    if (!card.answered && !drilling) {
-      await window.api.reviewAnswer(card.entry.id, rating, answerMode)
-    }
-    // 还需认识次数：初始 1；认识 -1（到 0 出局）；模糊设 1；忘记设 2（上限，防无限循环）
-    const need = card.need ?? 1
-    const nextNeed = rating === 3 ? need - 1 : rating === 2 ? 1 : 2
-    setResult((r) => ({ ...r, answered: r.answered + 1 }))
-    if (rating !== 3) {
-      setSlippedIds((ids) => new Set(ids).add(card.entry.id))
-    }
-    const reappend = nextNeed > 0
-    if (reappend) {
-      setQueue((qs) => [
-        ...qs,
-        { ...card, need: nextNeed, answered: true, relearn: rating !== 3, isNew: false }
-      ])
-    }
-    // queue.length 是追加前的旧值：最后一张要重现时得把刚追加的算上，否则会话提前结束
-    if (idx + 1 >= queue.length + (reappend ? 1 : 0)) {
-      if (drilling) {
-        setDoneCount(result.answered + 1)
-        setPhase('idle')
-      } else {
-        setPhase('done')
+    // 防重入：连点/键盘鼠标齐按只算一次；已退出本轮（如拼写过卡的定时器晚到）不再计分
+    if (!card || answeringRef.current || phaseRef.current !== 'session') return
+    answeringRef.current = true
+    try {
+      // 计划只认第一次真实作答（那时记忆水平是真实的）；复习轮一律不写排期
+      if (!card.answered && !practice) {
+        await window.api.reviewAnswer(card.entry.id, rating, answerMode)
       }
-      await load()
-    } else {
-      setIdx((i) => i + 1)
+      // 等待写库期间退出了本轮，后面不再推进
+      if (phaseRef.current !== 'session') return
+      // 还需认识次数：初始 1；认识 -1（到 0 出局）；模糊设 1；忘记设 2（上限，防无限循环）
+      const need = card.need ?? 1
+      const nextNeed = rating === 3 ? need - 1 : rating === 2 ? 1 : 2
+      setResult((r) => ({ ...r, answered: r.answered + 1 }))
+      if (rating !== 3) {
+        setSlippedIds((ids) => new Set(ids).add(card.entry.id))
+      }
+      const reappend = nextNeed > 0
+      if (reappend) {
+        setQueue((qs) => [
+          ...qs,
+          { ...card, need: nextNeed, answered: true, relearn: rating !== 3, isNew: false }
+        ])
+      }
+      // queue.length 是追加前的旧值：最后一张要重现时得把刚追加的算上，否则会话提前结束
+      if (idx + 1 >= queue.length + (reappend ? 1 : 0)) {
+        if (practice) {
+          setDoneCount(result.answered + 1)
+          setPhase('idle')
+        } else {
+          setPhase('done')
+        }
+        await load()
+      } else {
+        setIdx((i) => i + 1)
+      }
+    } finally {
+      answeringRef.current = false
     }
   }
 
@@ -235,7 +250,7 @@ export function ReviewPage({
       cards={queue}
       index={idx}
       mode={mode}
-      drilling={drilling}
+      practice={practice}
       onAnswer={handleAnswer}
       onReveal={handleReveal}
       onExit={() => {
@@ -271,7 +286,7 @@ function ReviewSession({
   cards,
   index,
   mode,
-  drilling,
+  practice,
   onAnswer,
   onReveal,
   onExit
@@ -279,7 +294,7 @@ function ReviewSession({
   cards: SessionCard[]
   index: number
   mode: ReviewMode
-  drilling: boolean
+  practice: boolean
   onAnswer: (rating: Rating, mode: ReviewMode) => Promise<void>
   onReveal: () => void
   onExit: () => void
@@ -294,8 +309,8 @@ function ReviewSession({
 
   // 新卡首次展示时计入今日新卡配额（巩固轮不算）
   useEffect(() => {
-    if (card?.isNew && !drilling) void window.api.reviewIntroduced(card.entry.id)
-  }, [card, drilling])
+    if (card?.isNew && !practice) void window.api.reviewIntroduced(card.entry.id)
+  }, [card, practice])
 
   useEffect(() => {
     setFlipped(false)

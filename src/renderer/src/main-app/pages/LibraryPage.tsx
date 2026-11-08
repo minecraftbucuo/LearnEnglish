@@ -47,6 +47,41 @@ export function LibraryPage({
   const [type, setType] = useState<TypeFilter>('all')
   const [starredOnly, setStarredOnly] = useState(false)
   const [status, setStatus] = useState<ReviewWordStatus | null>(initialStatus ?? null)
+  // 时间筛选：预设区间或指定某一天（本地日期 YYYY-MM-DD）
+  const [datePreset, setDatePreset] = useState<'today' | '7d' | '30d' | 'day' | null>(null)
+  const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({})
+
+  const dayStr = (d: Date): string => {
+    const p = (n: number): string => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+  }
+
+  function setDate(preset: 'today' | '7d' | '30d' | 'day', day?: string): void {
+    if (preset === 'day' && day) {
+      setDatePreset('day')
+      setDateRange({ from: day, to: day })
+      return
+    }
+    if (datePreset === preset) {
+      setDatePreset(null)
+      setDateRange({})
+      return
+    }
+    const now = new Date()
+    if (preset === 'today') {
+      setDateRange({ from: dayStr(now), to: dayStr(now) })
+    } else {
+      const from = new Date(now)
+      from.setDate(now.getDate() - (preset === '7d' ? 6 : 29))
+      setDateRange({ from: dayStr(from), to: dayStr(now) })
+    }
+    setDatePreset(preset)
+  }
+
+  function clearDate(): void {
+    setDatePreset(null)
+    setDateRange({})
+  }
 
   const load = useCallback(async (): Promise<void> => {
     const filter: EntriesFilter = {
@@ -54,10 +89,12 @@ export function LibraryPage({
       type,
       starredOnly,
       reviewStatus: status ?? undefined,
+      createdFrom: dateRange.from,
+      createdTo: dateRange.to,
       limit: 300
     }
     setEntries(await window.api.entriesList(filter))
-  }, [query, type, starredOnly, status])
+  }, [query, type, starredOnly, status, dateRange])
 
   useEffect(() => {
     void load()
@@ -114,6 +151,34 @@ export function LibraryPage({
                 {s.label}
               </button>
             ))}
+            <span className="mx-1 h-4 w-px bg-zinc-800" />
+            <button className={chip(datePreset === 'today')} onClick={() => setDate('today')}>
+              今天
+            </button>
+            <button className={chip(datePreset === '7d')} onClick={() => setDate('7d')}>
+              近7天
+            </button>
+            <button className={chip(datePreset === '30d')} onClick={() => setDate('30d')}>
+              近30天
+            </button>
+            <input
+              type="date"
+              value={datePreset === 'day' ? (dateRange.from ?? '') : ''}
+              onChange={(e) => {
+                if (e.target.value) setDate('day', e.target.value)
+              }}
+              title="按某一天筛选"
+              className="rounded-full border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300 outline-none transition [color-scheme:dark] hover:border-zinc-700 focus:border-teal-500"
+            />
+            {datePreset && (
+              <button
+                onClick={clearDate}
+                title="清除时间筛选"
+                className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-200"
+              >
+                ✕
+              </button>
+            )}
             <span className="ml-auto text-xs text-zinc-600">{entries.length} 条</span>
           </div>
         </div>

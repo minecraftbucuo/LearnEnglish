@@ -289,8 +289,24 @@ export function incrementLookupCount(id: number): Entry | null {
   return getEntryById(id)
 }
 
+/** 本地日期(YYYY-MM-DD)当天的起始/结束时刻，转成 UTC ISO 便于和 created_at 直接比较 */
+function localDayStartIso(day: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null
+  const [y, m, d] = day.split('-').map(Number)
+  return new Date(y, m - 1, d).toISOString()
+}
+
+function localDayEndIso(day: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null
+  const [y, m, d] = day.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + 1)
+  return dt.toISOString()
+}
+
 export function listEntries(filter: EntriesFilter = {}): Entry[] {
-  const { query, type, starredOnly, reviewStatus, limit = 200, offset = 0 } = filter
+  const { query, type, starredOnly, reviewStatus, createdFrom, createdTo, limit = 200, offset = 0 } =
+    filter
   const conds: string[] = []
   const params: unknown[] = []
   let join = ''
@@ -303,6 +319,16 @@ export function listEntries(filter: EntriesFilter = {}): Entry[] {
     params.push(type)
   }
   if (starredOnly) conds.push('is_starred = 1')
+  const fromIso = createdFrom ? localDayStartIso(createdFrom) : null
+  if (fromIso) {
+    conds.push('created_at >= ?')
+    params.push(fromIso)
+  }
+  const toIso = createdTo ? localDayEndIso(createdTo) : null
+  if (toIso) {
+    conds.push('created_at < ?')
+    params.push(toIso)
+  }
   if (reviewStatus) {
     // 按学习状态筛重点词：未学 / 今日新学 / 已学
     join = 'LEFT JOIN review_state rs ON rs.entry_id = entries.id'

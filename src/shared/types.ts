@@ -57,6 +57,8 @@ export interface EntriesFilter {
   type?: EntryType | 'all'
   starredOnly?: boolean
   reviewStatus?: ReviewWordStatus
+  createdFrom?: string // 本地日期 YYYY-MM-DD（含当天 0 点起）
+  createdTo?: string // 本地日期 YYYY-MM-DD（含当天）
   limit?: number
   offset?: number
 }
