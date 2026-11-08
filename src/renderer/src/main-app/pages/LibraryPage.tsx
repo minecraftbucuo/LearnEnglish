@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { EntriesFilter, Entry, EntryChat, EntryType } from '@shared/types'
+import type { EntriesFilter, Entry, EntryChat, EntryType, ReviewWordStatus } from '@shared/types'
 import { fmtDateTime, isZhText, speak } from '../../utils'
 import { EmText } from '../../components/EmText'
 import { Md } from '../../components/Md'
 
 type TypeFilter = EntryType | 'all'
 
-export function LibraryPage(): React.JSX.Element {
+export function LibraryPage({
+  initialStatus
+}: {
+  initialStatus?: ReviewWordStatus
+}): React.JSX.Element {
   const [entries, setEntries] = useState<Entry[]>([])
   const [selected, setSelected] = useState<Entry | null>(null)
   const [detailWidth, setDetailWidth] = useState<number>(() => {
@@ -42,16 +46,18 @@ export function LibraryPage(): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [type, setType] = useState<TypeFilter>('all')
   const [starredOnly, setStarredOnly] = useState(false)
+  const [status, setStatus] = useState<ReviewWordStatus | null>(initialStatus ?? null)
 
   const load = useCallback(async (): Promise<void> => {
     const filter: EntriesFilter = {
       query: query.trim() || undefined,
       type,
       starredOnly,
+      reviewStatus: status ?? undefined,
       limit: 300
     }
     setEntries(await window.api.entriesList(filter))
-  }, [query, type, starredOnly])
+  }, [query, type, starredOnly, status])
 
   useEffect(() => {
     void load()
@@ -92,6 +98,22 @@ export function LibraryPage(): React.JSX.Element {
             <button className={chip(starredOnly)} onClick={() => setStarredOnly((v) => !v)}>
               ⭐ 重点
             </button>
+            <span className="mx-1 h-4 w-px bg-zinc-800" />
+            {(
+              [
+                { key: 'new', label: '未学' },
+                { key: 'today', label: '今日新学' },
+                { key: 'learned', label: '已学' }
+              ] as { key: ReviewWordStatus; label: string }[]
+            ).map((s) => (
+              <button
+                key={s.key}
+                className={chip(status === s.key)}
+                onClick={() => setStatus(status === s.key ? null : s.key)}
+              >
+                {s.label}
+              </button>
+            ))}
             <span className="ml-auto text-xs text-zinc-600">{entries.length} 条</span>
           </div>
         </div>

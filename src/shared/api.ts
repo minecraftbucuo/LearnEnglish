@@ -93,7 +93,6 @@ export interface Api {
   entryToggleStar(id: number): Promise<Entry | null>
   entryToggleSuspend(id: number): Promise<Entry | null>
   entryDelete(id: number): Promise<void>
-  entryBoldTargets(id: number): Promise<Entry | null>
   entryChatAsk(entryId: number, question: string, chatId: string): Promise<void>
   entryChatAbort(chatId: string): Promise<void>
   entryChatList(entryId: number): Promise<EntryChat[]>
@@ -109,7 +108,7 @@ export interface Api {
 
   // ---- 复习 ----
   reviewQueue(): Promise<ReviewQueue>
-  freeQueue(): Promise<ReviewCard[]>
+  practiceQueue(): Promise<ReviewCard[]>
   reviewAnswer(entryId: number, rating: Rating, mode: ReviewMode): Promise<ReviewState | null>
   reviewIntroduced(entryId: number): Promise<void>
   reviewStats(): Promise<ReviewStats>

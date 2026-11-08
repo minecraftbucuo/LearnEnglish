@@ -1,8 +1,9 @@
 // 主进程与渲染进程共享的类型定义
 
 export type EntryType = 'word' | 'sentence'
-export type EntrySource = 'selection' | 'screenshot' | 'manual'
-export type Rating = 1 | 2 | 3 | 4 // 忘记 / 困难 / 良好 / 简单
+export type EntrySource = 'selection' | 'manual'
+export type Rating = 1 | 2 | 3 // 不认识 / 模糊 / 认识
+/** 复习方式：识记（看词忆义）/ 拼写（看义写词）。同一条进度，只是出题形式不同 */
 export type ReviewMode = 'recall' | 'spelling'
 
 export interface StructuredData {
@@ -37,7 +38,6 @@ export interface Entry {
   text: string
   context: string | null
   source: EntrySource
-  imagePath: string | null
   structured: StructuredData | null
   markdown: string | null // 最近一次 AI 讲解原文（缓存复用，避免重复调 API）
   note: string
@@ -49,11 +49,14 @@ export interface Entry {
   review: ReviewState | null
 }
 
+/** 学习状态筛选：未学 / 今日新学 / 已学（仅重点词） */
+export type ReviewWordStatus = 'new' | 'today' | 'learned'
+
 export interface EntriesFilter {
   query?: string
   type?: EntryType | 'all'
-  source?: EntrySource | 'all'
   starredOnly?: boolean
+  reviewStatus?: ReviewWordStatus
   limit?: number
   offset?: number
 }
@@ -88,6 +91,7 @@ export interface ReviewStats {
   newToday: number
   streakDays: number
   mastered: number
+  learned: number // 已接触过的识记卡数（巩固轮可选范围）
   upcoming: { date: string; count: number }[] // 未来 7 天（本地日期）
 }
 

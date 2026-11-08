@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import iconUrl from '../assets/icon.png'
+import type { ReviewWordStatus } from '@shared/types'
 import { LibraryPage } from './pages/LibraryPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { StatsPage } from './pages/StatsPage'
@@ -8,7 +9,7 @@ import { SettingsPage } from './pages/SettingsPage'
 export type Tab = 'library' | 'review' | 'stats' | 'settings'
 
 const TABS: { key: Tab; icon: string; label: string }[] = [
-  { key: 'review', icon: '🎯', label: '复习' },
+  { key: 'review', icon: '🎯', label: '学习' },
   { key: 'library', icon: '📚', label: '生词本' },
   { key: 'stats', icon: '📊', label: '统计' },
   { key: 'settings', icon: '⚙️', label: '设置' }
@@ -17,6 +18,14 @@ const TABS: { key: Tab; icon: string; label: string }[] = [
 export default function App(): React.JSX.Element {
   const [tab, setTab] = useState<Tab>('library')
   const [refreshKey, setRefreshKey] = useState(0)
+  // 从学习页数据卡点进生词本时携带的学习状态筛选
+  const [libraryStatus, setLibraryStatus] = useState<ReviewWordStatus | undefined>(undefined)
+
+  function openWords(status: ReviewWordStatus): void {
+    setLibraryStatus(status)
+    setTab('library')
+    setRefreshKey((k) => k + 1)
+  }
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     const v = Number(localStorage.getItem('le_sidebar_width'))
     return v >= 140 && v <= 300 ? v : 176
@@ -71,6 +80,7 @@ export default function App(): React.JSX.Element {
               key={t.key}
               onClick={() => {
                 setTab(t.key)
+                if (t.key === 'library') setLibraryStatus(undefined)
                 setRefreshKey((k) => k + 1)
               }}
               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition ${
@@ -100,8 +110,11 @@ export default function App(): React.JSX.Element {
 
       {/* 内容区 */}
       <main className="min-w-0 flex-1 overflow-hidden">
-        {tab === 'library' && <LibraryPage key={refreshKey} />}
-        {tab === 'review' && <ReviewPage key={refreshKey} />}
+        {tab === 'library' && <LibraryPage key={refreshKey} initialStatus={libraryStatus} />}
+        {/* 学习页常驻挂载：切走再切回，进行中的会话不重置 */}
+        <div className={`h-full ${tab === 'review' ? '' : 'hidden'}`}>
+          <ReviewPage active={tab === 'review'} onOpenWords={openWords} />
+        </div>
         {tab === 'stats' && <StatsPage key={refreshKey} />}
         {tab === 'settings' && <SettingsPage key={refreshKey} />}
       </main>

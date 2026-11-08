@@ -10,11 +10,10 @@ import type {
 import {
   answer,
   addEntryChat,
-  boldEntryTargets,
   deleteEntry,
   deleteEntryChat,
+  getPracticeQueue,
   getEntryById,
-  getFreePracticeQueue,
   getReviewQueue,
   getReviewStats,
   listEntries,
@@ -73,7 +72,6 @@ export function registerIpc(): void {
     return setSuspended(id, !entry.suspended)
   })
   ipcMain.handle(CH.ENTRY_DELETE, (_e, id: number) => deleteEntry(id))
-  ipcMain.handle(CH.ENTRY_BOLD_TARGETS, (_e, id: number) => boldEntryTargets(id))
 
   // ---- 追问（流式，边生成边推送） ----
   ipcMain.handle(
@@ -136,7 +134,7 @@ export function registerIpc(): void {
 
   // ---- 复习 ----
   ipcMain.handle(CH.REVIEW_QUEUE, () => getReviewQueue(getSettings().dailyNew))
-  ipcMain.handle(CH.REVIEW_FREE_QUEUE, () => getFreePracticeQueue())
+  ipcMain.handle(CH.REVIEW_PRACTICE_QUEUE, () => getPracticeQueue())
   ipcMain.handle(
     CH.REVIEW_ANSWER,
     (_e, entryId: number, rating: Rating, mode: ReviewMode) => answer(entryId, rating, mode)

@@ -30,7 +30,6 @@ const api: Api = {
   entryToggleStar: (id) => ipcRenderer.invoke(CH.ENTRY_TOGGLE_STAR, id),
   entryToggleSuspend: (id) => ipcRenderer.invoke(CH.ENTRY_TOGGLE_SUSPEND, id),
   entryDelete: (id) => ipcRenderer.invoke(CH.ENTRY_DELETE, id),
-  entryBoldTargets: (id) => ipcRenderer.invoke(CH.ENTRY_BOLD_TARGETS, id),
   entryChatAsk: (entryId, question, chatId) =>
     ipcRenderer.invoke(CH.ENTRY_CHAT_ASK, entryId, question, chatId),
   entryChatAbort: (chatId) => ipcRenderer.invoke(CH.ENTRY_CHAT_ABORT, chatId),
@@ -47,7 +46,7 @@ const api: Api = {
   onRelookupError: (cb) => subscribe(CH.ENTRY_RELOOKUP_ERROR, cb as never),
 
   reviewQueue: () => ipcRenderer.invoke(CH.REVIEW_QUEUE),
-  freeQueue: () => ipcRenderer.invoke(CH.REVIEW_FREE_QUEUE),
+  practiceQueue: () => ipcRenderer.invoke(CH.REVIEW_PRACTICE_QUEUE),
   reviewAnswer: (entryId, rating, mode) => ipcRenderer.invoke(CH.REVIEW_ANSWER, entryId, rating, mode),
   reviewIntroduced: (entryId) => ipcRenderer.invoke(CH.REVIEW_INTRODUCED, entryId),
   reviewStats: () => ipcRenderer.invoke(CH.REVIEW_STATS),

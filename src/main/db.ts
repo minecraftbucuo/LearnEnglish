@@ -25,7 +25,6 @@ interface EntryRow {
   text: string
   context: string | null
   source: EntrySource
-  image_path: string | null
   structured: string | null
   markdown: string | null
   note: string
@@ -49,6 +48,19 @@ interface ReviewRow {
 
 const nowIso = (): string => new Date().toISOString()
 
+const REVIEW_STATE_SQL = `
+    CREATE TABLE IF NOT EXISTS review_state (
+      entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+      ease REAL NOT NULL DEFAULT 2.5,
+      interval_days REAL NOT NULL DEFAULT 0,
+      due_at TEXT NOT NULL,
+      reps INTEGER NOT NULL DEFAULT 0,
+      lapses INTEGER NOT NULL DEFAULT 0,
+      introduced_at TEXT,
+      last_reviewed_at TEXT
+    );
+  `
+
 export function initDb(): void {
   db = new Database(path.join(app.getPath('userData'), 'learn-english.db'))
   db.pragma('journal_mode = WAL')
@@ -71,16 +83,7 @@ export function initDb(): void {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_entries_text ON entries(text) WHERE source != 'image';
     CREATE INDEX IF NOT EXISTS idx_entries_created ON entries(created_at DESC);
-    CREATE TABLE IF NOT EXISTS review_state (
-      entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
-      ease REAL NOT NULL DEFAULT 2.5,
-      interval_days REAL NOT NULL DEFAULT 0,
-      due_at TEXT NOT NULL,
-      reps INTEGER NOT NULL DEFAULT 0,
-      lapses INTEGER NOT NULL DEFAULT 0,
-      introduced_at TEXT,
-      last_reviewed_at TEXT
-    );
+    ${REVIEW_STATE_SQL}
     CREATE TABLE IF NOT EXISTS review_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
@@ -101,6 +104,21 @@ export function initDb(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_chats_entry ON entry_chats(entry_id, created_at);
   `)
+  // 老库迁移：撤销双轨表，回到单轨（拼写只是复习的一种出题形式，不再单独记账）
+  const rCols = (
+    db.prepare('PRAGMA table_info(review_state)').all() as { name: string }[]
+  ).map((c) => c.name)
+  if (rCols.includes('track')) {
+    db.exec(`
+      ALTER TABLE review_state RENAME TO review_state_old;
+      ${REVIEW_STATE_SQL.replace('IF NOT EXISTS ', '')}
+      INSERT INTO review_state (entry_id, ease, interval_days, due_at, reps, lapses, introduced_at, last_reviewed_at)
+        SELECT entry_id, ease, interval_days, due_at, reps, lapses, introduced_at, last_reviewed_at
+        FROM review_state_old WHERE track = 'recall';
+      DROP TABLE review_state_old;
+    `)
+    console.log('[db] review_state 已迁移回单轨表（拼写轨数据弃用）')
+  }
   // 老库迁移：补 markdown 缓存列
   const cols = (db.prepare('PRAGMA table_info(entries)').all() as { name: string }[]).map(
     (c) => c.name
@@ -128,6 +146,13 @@ export function initDb(): void {
       // 目录可能不存在
     }
     console.log(`[db] 已把 ${imgRows.length} 条截图词条转为普通词条，清理 ${files.length} 个截图文件`)
+  }
+  const shotRows = db
+    .prepare("SELECT COUNT(*) c FROM entries WHERE source = 'screenshot'")
+    .get() as { c: number }
+  if (shotRows.c > 0) {
+    db.prepare("UPDATE entries SET source = 'selection' WHERE source = 'screenshot'").run()
+    console.log(`[db] 已把 ${shotRows.c} 条 screenshot 来源词条并入 selection`)
   }
 }
 
@@ -165,7 +190,6 @@ function rowToEntry(r: EntryRow): Entry {
     text: r.text,
     context: r.context,
     source: r.source,
-    imagePath: r.image_path,
     structured,
     markdown: r.markdown ?? null,
     note: r.note,
@@ -266,9 +290,10 @@ export function incrementLookupCount(id: number): Entry | null {
 }
 
 export function listEntries(filter: EntriesFilter = {}): Entry[] {
-  const { query, type, source, starredOnly, limit = 200, offset = 0 } = filter
+  const { query, type, starredOnly, reviewStatus, limit = 200, offset = 0 } = filter
   const conds: string[] = []
   const params: unknown[] = []
+  let join = ''
   if (query) {
     conds.push('(text LIKE ? OR note LIKE ? OR context LIKE ?)')
     params.push(`%${query}%`, `%${query}%`, `%${query}%`)
@@ -277,14 +302,26 @@ export function listEntries(filter: EntriesFilter = {}): Entry[] {
     conds.push('type = ?')
     params.push(type)
   }
-  if (source && source !== 'all') {
-    conds.push('source = ?')
-    params.push(source)
-  }
   if (starredOnly) conds.push('is_starred = 1')
+  if (reviewStatus) {
+    // 按学习状态筛重点词：未学 / 今日新学 / 已学
+    join = 'LEFT JOIN review_state rs ON rs.entry_id = entries.id'
+    conds.push('entries.is_starred = 1')
+    if (reviewStatus === 'new') {
+      conds.push('(rs.entry_id IS NULL OR (rs.reps = 0 AND rs.introduced_at IS NULL))')
+    } else if (reviewStatus === 'today') {
+      conds.push(
+        "rs.introduced_at IS NOT NULL AND date(rs.introduced_at, 'localtime') = date('now', 'localtime')"
+      )
+    } else {
+      conds.push('(rs.reps > 0 OR rs.lapses > 0 OR rs.introduced_at IS NOT NULL)')
+    }
+  }
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : ''
   const rows = db
-    .prepare(`SELECT * FROM entries ${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`)
+    .prepare(
+      `SELECT entries.* FROM entries ${join} ${where} ORDER BY entries.updated_at DESC LIMIT ? OFFSET ?`
+    )
     .all(...params, limit, offset) as EntryRow[]
   return rows.map(rowToEntry)
 }
@@ -314,12 +351,9 @@ export function deleteEntry(id: number): void {
 // ---------- 复习 ----------
 
 function ensureReviewState(entryId: number): void {
-  const has = db.prepare('SELECT 1 FROM review_state WHERE entry_id = ?').get(entryId)
-  if (!has) {
-    db.prepare(
-      'INSERT INTO review_state (entry_id, due_at) VALUES (?, ?)'
-    ).run(entryId, nowIso())
-  }
+  db.prepare(
+    'INSERT INTO review_state (entry_id, due_at) VALUES (?, ?) ON CONFLICT(entry_id) DO NOTHING'
+  ).run(entryId, nowIso())
 }
 
 export function markIntroduced(entryId: number): void {
@@ -331,7 +365,10 @@ export function markIntroduced(entryId: number): void {
 export function answer(entryId: number, rating: Rating, mode: ReviewMode): ReviewState | null {
   const entry = getEntryById(entryId)
   if (!entry) return null
-  ensureReviewState(entryId)
+  // 行缺失时兜底补建；mode 只是出题形式（识记/拼写），进度同一条，作答形式记入日志
+  db.prepare(
+    'INSERT INTO review_state (entry_id, due_at) VALUES (?, ?) ON CONFLICT(entry_id) DO NOTHING'
+  ).run(entryId, nowIso())
   const row = db.prepare('SELECT * FROM review_state WHERE entry_id = ?').get(entryId) as ReviewRow
   const prev = {
     ease: row.ease,
@@ -349,7 +386,9 @@ export function answer(entryId: number, rating: Rating, mode: ReviewMode): Revie
     `INSERT INTO review_logs (entry_id, rating, mode, interval_before, interval_after, ease_after, reviewed_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(entryId, rating, mode, prev.intervalDays, next.intervalDays, next.ease, nowIso())
-  return rowToReview(db.prepare('SELECT * FROM review_state WHERE entry_id = ?').get(entryId) as ReviewRow)
+  return rowToReview(
+    db.prepare('SELECT * FROM review_state WHERE entry_id = ?').get(entryId) as ReviewRow
+  )
 }
 
 export function getReviewQueue(dailyNew: number): {
@@ -359,11 +398,14 @@ export function getReviewQueue(dailyNew: number): {
   newRemaining: number
 } {
   const now = nowIso()
-  const sql = `
-    SELECT e.*, r.ease, r.interval_days, r.due_at, r.reps, r.lapses, r.introduced_at, r.last_reviewed_at
-    FROM entries e JOIN review_state r ON r.entry_id = e.id
-    WHERE e.is_starred = 1 AND e.suspended = 0`
-  const all = db.prepare(sql).all() as (EntryRow & ReviewRow)[]
+  const all = db
+    .prepare(
+      `SELECT e.*, r.ease, r.interval_days, r.due_at, r.reps, r.lapses, r.introduced_at, r.last_reviewed_at
+       FROM entries e JOIN review_state r ON r.entry_id = e.id
+       WHERE e.is_starred = 1 AND e.suspended = 0
+       ORDER BY RANDOM()`
+    )
+    .all() as (EntryRow & ReviewRow)[]
 
   const toCard = (row: EntryRow & ReviewRow, isNew: boolean): ReviewCard => ({
     entry: rowToEntry(row),
@@ -371,12 +413,16 @@ export function getReviewQueue(dailyNew: number): {
     isNew
   })
 
+  // 到期 = 学过的卡（reps>0）到了 due_at；加上没学完的卡（reps=0 但已引入或点过「不认识」）。
+  // 后者不看 due_at：开新会话立刻入队，不让用户干等或记时间。
   const dueAll = all
-    .filter((r) => r.reps > 0 && r.due_at <= now)
+    .filter(
+      (r) =>
+        (r.reps > 0 && r.due_at <= now) ||
+        (r.reps === 0 && (r.lapses > 0 || r.introduced_at != null))
+    )
     .sort((a, b) => a.due_at.localeCompare(b.due_at))
-  const newPool = all
-    .filter((r) => r.reps === 0 && !r.introduced_at)
-    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+  const newPool = all.filter((r) => r.reps === 0 && !r.introduced_at)
 
   const introducedTodayCount = all.filter((r) => {
     if (!r.introduced_at) return false
@@ -394,16 +440,17 @@ export function getReviewQueue(dailyNew: number): {
   }
 }
 
-/** 自由练习队列：所有划重点且未暂停的卡片随机抽取，不区分是否到期（不计入调度） */
-export function getFreePracticeQueue(limit = 50): ReviewCard[] {
+/** 复习（巩固）队列：全部已接触过的卡，随机顺序。不写排期 */
+export function getPracticeQueue(): ReviewCard[] {
   const rows = db
     .prepare(
       `SELECT e.*, r.ease, r.interval_days, r.due_at, r.reps, r.lapses, r.introduced_at, r.last_reviewed_at
        FROM entries e JOIN review_state r ON r.entry_id = e.id
        WHERE e.is_starred = 1 AND e.suspended = 0
-       ORDER BY RANDOM() LIMIT ?`
+         AND (r.reps > 0 OR r.lapses > 0 OR r.introduced_at IS NOT NULL)
+       ORDER BY RANDOM()`
     )
-    .all(limit) as (EntryRow & ReviewRow)[]
+    .all() as (EntryRow & ReviewRow)[]
   return rows.map((row) => ({ entry: rowToEntry(row), state: rowToReview(row)!, isNew: false }))
 }
 
@@ -415,12 +462,22 @@ export function getReviewStats(): ReviewStats {
   ).c
   const reviewRows = db
     .prepare(
-      `SELECT r.* FROM review_state r JOIN entries e ON e.id = r.entry_id
+      `SELECT r.ease, r.interval_days, r.due_at, r.reps, r.lapses, r.introduced_at
+       FROM review_state r JOIN entries e ON e.id = r.entry_id
        WHERE e.is_starred = 1 AND e.suspended = 0`
     )
     .all() as ReviewRow[]
 
-  const dueNow = reviewRows.filter((r) => r.reps > 0 && r.due_at <= now).length
+  // 已接触过的卡（巩固轮的可选范围）
+  const learned = reviewRows.filter(
+    (r) => r.reps > 0 || r.lapses > 0 || r.introduced_at != null
+  ).length
+
+  const dueNow = reviewRows.filter(
+    (r) =>
+      (r.reps > 0 && r.due_at <= now) ||
+      (r.reps === 0 && (r.lapses > 0 || r.introduced_at != null))
+  ).length
   const newToday = reviewRows.filter(
     (r) => r.introduced_at && isSameLocalDay(r.introduced_at, Date.now())
   ).length
@@ -460,7 +517,7 @@ export function getReviewStats(): ReviewStats {
     const end = new Date(start)
     end.setDate(end.getDate() + 1)
     const count = reviewRows.filter((r) => {
-      if (r.reps === 0) return false
+      if (r.reps === 0 && r.lapses === 0 && !r.introduced_at) return false // 未学的新卡不计入
       const t = new Date(r.due_at).getTime()
       return t >= start.getTime() && t < end.getTime()
     }).length
@@ -475,6 +532,7 @@ export function getReviewStats(): ReviewStats {
     newToday,
     streakDays: streak,
     mastered,
+    learned,
     upcoming
   }
 }
@@ -502,20 +560,6 @@ export function listEntryChats(entryId: number): EntryChat[] {
 
 export function deleteEntryChat(id: number): void {
   db.prepare('DELETE FROM entry_chats WHERE id = ?').run(id)
-}
-
-// ---------- 目标词程序化加粗 ----------
-
-/** 手动给词条例句补粗（UI 已下线，接口保留备用）。
- *  加粗属于排版修正：无论是否有变化都不更新 updated_at，不影响列表排序。 */
-export function boldEntryTargets(id: number): Entry | null {
-  const entry = getEntryById(id)
-  if (!entry?.structured) return entry
-  const s = withTargetsBold(entry.structured, entry.text.trim())
-  // 无实际变化不写库；有变化也只更新 structured 字段，不动 updated_at
-  if (s === entry.structured) return entry
-  db.prepare('UPDATE entries SET structured = ? WHERE id = ?').run(JSON.stringify(s), id)
-  return getEntryById(id)
 }
 
 // ---------- 工具 ----------

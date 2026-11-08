@@ -1,37 +1,53 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReviewCard, ReviewStats } from '@shared/types'
-import { intervalPreview, isZhText, speak } from '../../utils'
+import type {
+  Rating,
+  ReviewCard,
+  ReviewMode,
+  ReviewQueue,
+  ReviewStats,
+  ReviewWordStatus
+} from '@shared/types'
+import { isZhText, speak } from '../../utils'
 import { EmText } from '../../components/EmText'
+import { Md } from '../../components/Md'
 
 type Phase = 'idle' | 'session' | 'done'
-type ReviewSessionMode = 'recall' | 'spelling'
 
-/** 会话内卡片：答「忘记」的卡会在队尾重现，relearn 用于标记「重学」徽章 */
-type SessionCard = ReviewCard & { relearn?: boolean }
+/**
+ * 会话内卡片（默默背单词式）：
+ * - need：还需答对「认识」的次数，初始 1，上限 2——点「忘记」设为 2，点「模糊」设为 1，
+ *   点「认识」减 1，减到 0 才算本轮过关；否则回队尾排队
+ * - answered：本局是否已作答过（计划只认第一次真实作答，之后的重现不再写排期）
+ * - relearn：答过「模糊/忘记」重现时显示「重学」徽章
+ */
+type SessionCard = ReviewCard & { need?: number; answered?: boolean; relearn?: boolean }
 
-const MODE_STORAGE_KEY = 'le_review_mode'
-
-export function ReviewPage(): React.JSX.Element {
+export function ReviewPage({
+  active,
+  onOpenWords
+}: {
+  active: boolean
+  onOpenWords: (status: ReviewWordStatus) => void
+}): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>('idle')
-  const [mode, setMode] = useState<ReviewSessionMode>(() =>
-    localStorage.getItem(MODE_STORAGE_KEY) === 'spelling' ? 'spelling' : 'recall'
-  )
-  const [freePractice, setFreePractice] = useState(false)
-  const [freeDoneCount, setFreeDoneCount] = useState<number | null>(null)
+  const [mode, setMode] = useState<ReviewMode>('recall')
+  // 复习/巩固不写排期（学过就练，随时可练）
+  const [drilling, setDrilling] = useState(false)
+  const [doneCount, setDoneCount] = useState<number | null>(null)
   const [queue, setQueue] = useState<SessionCard[]>([])
   const [idx, setIdx] = useState(0)
-  const [result, setResult] = useState({ answered: 0, again: 0, revealed: 0 })
+  const [result, setResult] = useState({ answered: 0, revealed: 0 })
+  // 本局点过「模糊/忘记」的卡（按词条去重，用来报「没记住几张」）
+  const [slippedIds, setSlippedIds] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
-  const [dueCount, setDueCount] = useState(0)
-  const [newRemaining, setNewRemaining] = useState(0)
+  const [queueInfo, setQueueInfo] = useState<ReviewQueue | null>(null)
   const [stats, setStats] = useState<ReviewStats | null>(null)
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
-    const q = await window.api.reviewQueue()
-    setDueCount(q.dueCount)
-    setNewRemaining(q.newRemaining)
-    setStats(await window.api.reviewStats())
+    const [q, s] = await Promise.all([window.api.reviewQueue(), window.api.reviewStats()])
+    setQueueInfo(q)
+    setStats(s)
     setLoading(false)
   }, [])
 
@@ -39,57 +55,78 @@ export function ReviewPage(): React.JSX.Element {
     void load()
   }, [load])
 
-  function chooseMode(m: ReviewSessionMode): void {
-    setMode(m)
-    localStorage.setItem(MODE_STORAGE_KEY, m)
+  // 从其他页切回来：空闲状态刷新数据；会话进行中不打断
+  useEffect(() => {
+    if (active && (phase === 'idle' || phase === 'done')) void load()
+  }, [active])
+
+  function resetSession(cards: SessionCard[]): void {
+    setQueue(cards)
+    setIdx(0)
+    setResult({ answered: 0, revealed: 0 })
+    setSlippedIds(new Set())
   }
 
-  async function start(): Promise<void> {
+  /** 学新词：今日额度内的新卡，第一次作答写入排期 */
+  async function startStudy(): Promise<void> {
     const q = await window.api.reviewQueue()
-    const cards = [...q.due, ...q.newCards]
-    if (!cards.length) {
+    if (!q.newCards.length) {
       await load()
       return
     }
-    setQueue(cards)
-    setIdx(0)
-    setResult({ answered: 0, again: 0, revealed: 0 })
-    setFreePractice(false)
-    setFreeDoneCount(null)
+    setMode('recall')
+    setDrilling(false)
+    setDoneCount(null)
+    resetSession(q.newCards)
     setPhase('session')
   }
 
-  async function startFree(): Promise<void> {
-    const cards = await window.api.freeQueue()
+  /** 复习（= 巩固）：已学过的词再过一遍，识记或拼写形式出题；不写排期，随时可练 */
+  async function startReview(m: ReviewMode): Promise<void> {
+    const cards = (await window.api.practiceQueue()).map((c) => ({
+      ...c,
+      need: undefined,
+      answered: undefined,
+      relearn: undefined
+    }))
     if (!cards.length) return
-    setQueue(cards)
-    setIdx(0)
-    setResult({ answered: 0, again: 0, revealed: 0 })
-    setFreePractice(true)
-    setFreeDoneCount(null)
+    setMode(m)
+    setDrilling(true)
+    setDoneCount(null)
+    resetSession(cards)
     setPhase('session')
   }
 
-  async function handleAnswer(
-    rating: 1 | 2 | 3 | 4,
-    answerMode: 'recall' | 'spelling'
-  ): Promise<void> {
+  async function handleAnswer(rating: Rating, answerMode: ReviewMode): Promise<void> {
     const card = queue[idx]
     if (!card) return
-    // 自由练习不计入调度与统计
-    if (!freePractice) await window.api.reviewAnswer(card.entry.id, rating, answerMode)
-    setResult((r) => ({ ...r, answered: r.answered + 1, again: r.again + (rating === 1 ? 1 : 0) }))
-    // 答「忘记」：本轮队尾重现，学对才算完
-    if (rating === 1) setQueue((qs) => [...qs, { ...card, isNew: false, relearn: true }])
-    if (idx + 1 >= queue.length) {
-      if (freePractice) {
-        setFreeDoneCount(result.answered + 1)
+    // 计划只认第一次真实作答（那时记忆水平是真实的）；巩固轮一律不写排期
+    if (!card.answered && !drilling) {
+      await window.api.reviewAnswer(card.entry.id, rating, answerMode)
+    }
+    // 还需认识次数：初始 1；认识 -1（到 0 出局）；模糊设 1；忘记设 2（上限，防无限循环）
+    const need = card.need ?? 1
+    const nextNeed = rating === 3 ? need - 1 : rating === 2 ? 1 : 2
+    setResult((r) => ({ ...r, answered: r.answered + 1 }))
+    if (rating !== 3) {
+      setSlippedIds((ids) => new Set(ids).add(card.entry.id))
+    }
+    const reappend = nextNeed > 0
+    if (reappend) {
+      setQueue((qs) => [
+        ...qs,
+        { ...card, need: nextNeed, answered: true, relearn: rating !== 3, isNew: false }
+      ])
+    }
+    // queue.length 是追加前的旧值：最后一张要重现时得把刚追加的算上，否则会话提前结束
+    if (idx + 1 >= queue.length + (reappend ? 1 : 0)) {
+      if (drilling) {
+        setDoneCount(result.answered + 1)
         setPhase('idle')
-        await load()
       } else {
         setPhase('done')
-        await load()
       }
+      await load()
     } else {
       setIdx((i) => i + 1)
     }
@@ -103,87 +140,90 @@ export function ReviewPage(): React.JSX.Element {
 
   if (phase === 'idle' || phase === 'done') {
     const finished = phase === 'done'
+    const newRemaining = queueInfo?.newRemaining ?? 0
+    const learned = stats?.learned ?? 0
     return (
       <div className="flex h-full flex-col items-center justify-center gap-8 px-6">
         {finished && (
           <div className="text-center">
-            <div className="text-4xl">{result.again === 0 ? '🎉' : '💪'}</div>
+            <div className="text-4xl">{slippedIds.size === 0 ? '🎉' : '💪'}</div>
             <div className="mt-3 text-lg font-semibold text-zinc-100">本轮完成</div>
             <div className="mt-1 text-sm text-zinc-500">
-              共复习 {result.answered} 张，其中 {result.again} 张不认识（稍后会重现）
-              {mode === 'spelling' && result.revealed > 0 && <>，{result.revealed} 张点了显示答案</>}
+              复习了 {result.answered} 张{slippedIds.size > 0 && <>，没记住 {slippedIds.size} 张</>}
+              {mode === 'spelling' && result.revealed > 0 && <>，看了 {result.revealed} 次答案</>}
             </div>
           </div>
         )}
-        {freeDoneCount !== null && (
+        {doneCount !== null && (
           <div className="rounded-lg bg-violet-500/10 px-4 py-2 text-xs text-violet-300">
-            刚完成自由练习 {freeDoneCount} 张（不计入复习进度，不影响排期）
+            刚复习完 {doneCount} 张
           </div>
         )}
         <div className="flex gap-4">
-          <div className="w-36 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30">
-            <div className="text-3xl font-bold text-teal-400">{dueCount}</div>
-            <div className="mt-1 text-xs text-zinc-500">到期复习</div>
-          </div>
-          <div className="w-36 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30">
+          <button
+            onClick={() => onOpenWords('new')}
+            title="查看未学的新词"
+            className="w-36 cursor-pointer rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30 transition hover:border-sky-500/60 hover:bg-zinc-800/60"
+          >
             <div className="text-3xl font-bold text-sky-400">{newRemaining}</div>
-            <div className="mt-1 text-xs text-zinc-500">可学新卡（剩余）</div>
-          </div>
-          <div className="w-36 rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30">
+            <div className="mt-1 text-xs text-zinc-500">可学新词</div>
+          </button>
+          <button
+            onClick={() => onOpenWords('today')}
+            title="查看今天新学的词"
+            className="w-36 cursor-pointer rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30 transition hover:border-zinc-600 hover:bg-zinc-800/60"
+          >
             <div className="text-3xl font-bold text-zinc-200">{stats?.newToday ?? 0}</div>
-            <div className="mt-1 text-xs text-zinc-500">今日已学新卡</div>
-          </div>
-        </div>
-        <div className="flex flex-col items-center gap-3">
-          {/* 模式选择：整轮统一，单词不会先露脸 */}
-          <div className="flex rounded-xl border border-zinc-800 bg-zinc-900 p-1">
-            {(
-              [
-                { key: 'recall', label: '📖 识记', desc: '看单词回忆释义' },
-                { key: 'spelling', label: '⌨️ 拼写', desc: '看释义默写单词' }
-              ] as { key: ReviewSessionMode; label: string; desc: string }[]
-            ).map((m) => (
-              <button
-                key={m.key}
-                onClick={() => chooseMode(m.key)}
-                title={m.desc}
-                className={`rounded-lg px-5 py-1.5 text-sm transition ${
-                  mode === m.key
-                    ? 'bg-teal-600 font-medium text-white'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => void start()}
-            disabled={dueCount + newRemaining === 0}
-            className="rounded-xl bg-teal-600 px-10 py-3 text-sm font-medium text-white shadow transition hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {finished ? '再来一轮' : '开始复习'}
+            <div className="mt-1 text-xs text-zinc-500">今日已学</div>
           </button>
           <button
-            onClick={() => void startFree()}
-            disabled={(stats?.starred ?? 0) === 0}
-            className="rounded-lg border border-violet-500/40 px-5 py-1.5 text-xs text-violet-300 transition hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-            title="随机抽取全部重点卡片练习，不改变复习排期"
+            onClick={() => onOpenWords('learned')}
+            title="查看所有已学的词"
+            className="w-36 cursor-pointer rounded-2xl border border-zinc-800 bg-zinc-900 px-4 py-5 text-center shadow-sm shadow-black/30 transition hover:border-teal-500/60 hover:bg-zinc-800/60"
           >
-            🎲 自由练习 · 随机 {stats?.starred ?? 0} 张（不计入进度）
+            <div className="text-3xl font-bold text-teal-400">{learned}</div>
+            <div className="mt-1 text-xs text-zinc-500">已学单词</div>
           </button>
         </div>
-        {dueCount + newRemaining === 0 && (
-          <div className="max-w-md text-center text-xs leading-6 text-zinc-500">
-            {(stats?.newToday ?? 0) > 0 || (stats?.reviewedToday ?? 0) > 0 ? (
-              <>
-                今日任务已完成 ✅ 共复习 {stats?.reviewedToday ?? 0} 张。
-                点了「不认识」的卡 <b className="text-zinc-300">10 分钟后</b>会自动重现；
-                认识的卡从明天起按间隔出现。
-              </>
-            ) : (
-              <>划重点的新词会在明天出现在这里。去查几个词并按 ⭐ 划入重点，就能开始积累卡片。</>
+        <div className="flex flex-col items-center gap-8">
+          {/* 学习：今日额度内的新词，第一次作答写入排期；学完即止 */}
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={() => void startStudy()}
+              disabled={newRemaining === 0}
+              title="学今天额度内的新词"
+              className="rounded-xl bg-sky-600 px-10 py-3 text-sm font-medium text-white shadow transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              📖 学习新词{newRemaining > 0 && <span className="ml-1.5 opacity-80">{newRemaining}</span>}
+            </button>
+            {newRemaining === 0 && learned > 0 && (
+              <div className="text-xs text-zinc-500">今日单词已学完 ✅</div>
             )}
+          </div>
+          {/* 复习：学过之后出现，已学的词再过一遍，不写排期，随时可练 */}
+          {learned > 0 && (
+            <div className="flex flex-col items-center gap-2.5">
+              <div className="text-xs text-zinc-500">复习</div>
+              <button
+                onClick={() => void startReview('recall')}
+                title="看单词，回忆释义"
+                className="rounded-xl bg-teal-600 px-10 py-3 text-sm font-medium text-white shadow transition hover:bg-teal-500"
+              >
+                📖 识记复习
+              </button>
+              <button
+                onClick={() => void startReview('spelling')}
+                title="看释义，默写单词"
+                className="rounded-xl bg-violet-600 px-10 py-3 text-sm font-medium text-white shadow transition hover:bg-violet-500"
+              >
+                ⌨️ 拼写复习
+              </button>
+            </div>
+          )}
+        </div>
+        {learned === 0 && (stats?.starred ?? 0) === 0 && (
+          <div className="max-w-md text-center text-xs leading-6 text-zinc-500">
+            去查几个词并按 ⭐ 划入重点，就能开始积累单词。
           </div>
         )}
       </div>
@@ -195,16 +235,21 @@ export function ReviewPage(): React.JSX.Element {
       cards={queue}
       index={idx}
       mode={mode}
+      drilling={drilling}
       onAnswer={handleAnswer}
       onReveal={handleReveal}
+      onExit={() => {
+        setPhase('idle')
+        void load()
+      }}
     />
   )
 }
 
 // ---------- 复习会话 ----------
 
-// 自评三档（默默背单词式）：认识 / 模糊 / 不认识，映射到 SRS 的 3/2/1，展示顺序与按键一致
-const SELF_RATINGS: { rating: 1 | 2 | 3; label: string; color: string; key: string }[] = [
+// 自评三档（默默背单词式）：认识 / 模糊 / 不认识，展示顺序与按键一致
+const SELF_RATINGS: { rating: Rating; label: string; color: string; key: string }[] = [
   { rating: 3, label: '认识', color: 'bg-teal-600 hover:bg-teal-500', key: '1' },
   { rating: 2, label: '模糊', color: 'bg-orange-600 hover:bg-orange-500', key: '2' },
   { rating: 1, label: '不认识', color: 'bg-red-600 hover:bg-red-500', key: '3' }
@@ -226,14 +271,18 @@ function ReviewSession({
   cards,
   index,
   mode,
+  drilling,
   onAnswer,
-  onReveal
+  onReveal,
+  onExit
 }: {
   cards: SessionCard[]
   index: number
-  mode: ReviewSessionMode
-  onAnswer: (rating: 1 | 2 | 3 | 4, mode: ReviewSessionMode) => Promise<void>
+  mode: ReviewMode
+  drilling: boolean
+  onAnswer: (rating: Rating, mode: ReviewMode) => Promise<void>
   onReveal: () => void
+  onExit: () => void
 }): React.JSX.Element {
   const card = cards[index]
   const [flipped, setFlipped] = useState(false)
@@ -243,10 +292,10 @@ function ReviewSession({
   )
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // 新卡首次展示时计入今日新卡配额
+  // 新卡首次展示时计入今日新卡配额（巩固轮不算）
   useEffect(() => {
-    if (card?.isNew) void window.api.reviewIntroduced(card.entry.id)
-  }, [card])
+    if (card?.isNew && !drilling) void window.api.reviewIntroduced(card.entry.id)
+  }, [card, drilling])
 
   useEffect(() => {
     setFlipped(false)
@@ -281,7 +330,7 @@ function ReviewSession({
       const grading = mode === 'recall' ? flipped : spellingStatus === 'revealed'
       if (grading && ['1', '2', '3'].includes(e.key)) {
         e.preventDefault()
-        void onAnswer(Number(e.key) as 1 | 2 | 3, mode)
+        void onAnswer(Number(e.key) as Rating, mode)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -326,6 +375,13 @@ function ReviewSession({
     <div className="mx-auto flex h-full max-w-2xl flex-col px-6 py-5">
       {/* 顶部进度 */}
       <div className="mb-4 flex items-center gap-3">
+        <button
+          onClick={onExit}
+          className="shrink-0 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+          title="退出本轮"
+        >
+          ← 返回
+        </button>
         <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-zinc-800">
           <div
             className="h-full rounded-full bg-teal-500 transition-all"
@@ -464,28 +520,11 @@ function ReviewSession({
                 </button>
               )}
             </div>
-            {s ? (
+            {entry.markdown ? (
+              /* 和查询弹窗同一份完整讲解 */
+              <Md>{entry.markdown}</Md>
+            ) : s ? (
               <div className="space-y-3">
-                {s.equivalents && s.equivalents.length > 0 && (
-                  <div className="space-y-2">
-                    {s.equivalents.slice(0, 4).map((eq, i) => (
-                      <div key={i} className="text-center">
-                        <div>
-                          <span className="text-[15px] font-semibold text-teal-300">
-                            <EmText text={eq.en} boldClass="font-semibold" />
-                          </span>
-                          {eq.phonetic && <span className="ml-2 text-xs text-zinc-500">{eq.phonetic}</span>}
-                          {eq.pos && <span className="ml-1.5 text-xs text-teal-500">{eq.pos}</span>}
-                        </div>
-                        {eq.note && (
-                          <div className="text-xs text-zinc-400">
-                            <EmText text={eq.note} boldClass="font-medium text-zinc-200" />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
                 {(s.phonetic || s.pos || s.definitionZh) && (
                   <div className="text-center">
                     {s.phonetic && <span className="mr-2 text-zinc-500">{s.phonetic}</span>}
@@ -516,7 +555,7 @@ function ReviewSession({
                 )}
                 {s.keyPoints && s.keyPoints.length > 0 && (
                   <div>
-                    {s.keyPoints.slice(0, 4).map((k, i) => (
+                    {s.keyPoints.map((k, i) => (
                       <div key={i} className="text-[13px] leading-6">
                         <span className="font-medium text-teal-300">
                           <EmText text={k.term} boldClass="font-medium" />
@@ -528,15 +567,15 @@ function ReviewSession({
                     ))}
                   </div>
                 )}
-                {entry.note && (
-                  <div className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200/80">
-                    📝 {entry.note}
-                  </div>
-                )}
               </div>
             ) : (
               <div className="py-6 text-center text-sm text-zinc-600">
-                这条重点还没有结构化讲解，去生词本查看详情或重新查询。
+                这条重点还没有讲解，去生词本查看详情或重新查询。
+              </div>
+            )}
+            {entry.note && (
+              <div className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200/80">
+                📝 {entry.note}
               </div>
             )}
           </div>
@@ -550,7 +589,6 @@ function ReviewSession({
             <button
               key={r.rating}
               onClick={() => void onAnswer(r.rating, mode)}
-              title={`下次间隔：${intervalPreview(card.state, r.rating)}`}
               className={`flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-medium text-white shadow-sm transition ${r.color}`}
             >
               <span className="rounded bg-white/25 px-1.5 text-xs">{r.key}</span>
