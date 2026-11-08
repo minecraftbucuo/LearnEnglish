@@ -109,17 +109,25 @@ interface ChartTip {
   text: string
   left: number
   top: number
+  below?: boolean
 }
 
-/** 把触发元素的顶部中心换算成相对容器坐标（tooltip 显示在其上方）。HTML 元素与 SVG 图形通用 */
+/** tooltip 约占高度（11px 文本 + 上下 padding + 边框） */
+const TIP_H = 28
+
+/** 把触发元素的顶部中心换算成相对容器坐标（默认显示在其上方，上方放不下翻到下方）。
+ *  HTML 元素与 SVG 图形通用。容器是 overflow 滚动容器，出界会被裁剪，需按可视范围钳位 */
 function anchorTip(e: React.MouseEvent, wrap: HTMLDivElement | null, text: string): ChartTip | null {
   if (!wrap) return null
   const r = e.currentTarget.getBoundingClientRect()
   const wr = wrap.getBoundingClientRect()
-  const left = Math.min(
-    Math.max(r.left - wr.left + r.width / 2, 56),
-    Math.max(wr.width - 56, 56)
-  )
+  const sl = wrap.scrollLeft
+  const center = r.left - wr.left + r.width / 2 + sl
+  const left = Math.min(Math.max(center, sl + 56), Math.max(sl + wr.width - 56, sl + 56))
+  // 上方放不下且下方有足够空间（如热力图首行）→ 翻到下方
+  if (r.top - wr.top - 6 < TIP_H && wr.bottom - r.bottom > TIP_H) {
+    return { text, left, top: r.bottom - wr.top + 6, below: true }
+  }
   return { text, left, top: r.top - wr.top - 6 }
 }
 
@@ -128,7 +136,11 @@ function ChartTipBox({ tip }: { tip: ChartTip | null }): React.JSX.Element | nul
   return (
     <div
       className="pointer-events-none absolute z-20 whitespace-nowrap rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-100 shadow-lg shadow-black/40"
-      style={{ left: tip.left, top: tip.top, transform: 'translate(-50%, -100%)' }}
+      style={{
+        left: tip.left,
+        top: tip.top,
+        transform: tip.below ? 'translate(-50%, 0)' : 'translate(-50%, -100%)'
+      }}
     >
       {tip.text}
     </div>
