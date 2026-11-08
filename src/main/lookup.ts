@@ -285,11 +285,20 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
   const settings = getSettings()
   const kind = session.kind
 
-  if (force || session.messages.length === 0) {
+  if (force || session.messages.length === 0 || session.messages[0]?.role !== 'system') {
+    // 缓存态嵌套卡首问：会话里只有用户问题、无系统提示词 → 重建首答上下文并补回问题
+    const last = session.messages[session.messages.length - 1]
+    const pending = !force && last?.role === 'user' ? last : undefined
     session.kind = kind
     session.messages = buildLookupMessages(kind, session.text, settings.promptCards)
-  } else if (!session.messages.some((m) => m.role === 'system' && m.content === FOLLOWUP_GUIDE)) {
-    // 首次追问：在用户问题前插入自由交流指引，解除首答的卡片结构与 AI_DATA 约束
+    if (pending) session.messages.push(pending)
+  }
+  if (
+    !force &&
+    session.messages.length > 2 &&
+    !session.messages.some((m) => m.role === 'system' && m.content === FOLLOWUP_GUIDE)
+  ) {
+    // 追问轮次：在最新用户问题前插入自由交流指引，解除首答的卡片结构与 AI_DATA 约束
     session.messages.splice(session.messages.length - 1, 0, {
       role: 'system',
       content: FOLLOWUP_GUIDE

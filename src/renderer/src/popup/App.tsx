@@ -13,7 +13,7 @@ interface Bubble {
 interface NestedCard {
   lookupId: string
   text: string
-  bubbles: Bubble[] // 只有 assistant
+  bubbles: Bubble[] // 讲解 + 追问对话（用户气泡右侧小条）
   streaming: boolean
   error: string | null
   starred: boolean
@@ -64,6 +64,8 @@ export default function App(): React.JSX.Element {
   const [capturing, setCapturing] = useState(false)
   const [manual, setManual] = useState(false)
   const [fromCache, setFromCache] = useState(false)
+  // 嵌套卡各自的追问输入框内容（按 lookupId 分键）
+  const [cardInputs, setCardInputs] = useState<Record<string, string>>({})
   const bodyRef = useRef<HTMLDivElement>(null)
   const lookupIdRef = useRef<string | null>(null) // 根会话
 
@@ -283,6 +285,27 @@ export default function App(): React.JSX.Element {
     await window.api.aiFollowup(id, q)
   }
 
+  /** 在嵌套卡里和该词交流：对话追加在卡内，并落库到该词条的追问 AI 记录 */
+  async function sendNested(lookupId: string): Promise<void> {
+    const q = (cardInputs[lookupId] ?? '').trim()
+    if (!q) return
+    const found = items.find((x) => x.kind === 'nested' && x.card.lookupId === lookupId)
+    const card = found?.kind === 'nested' ? found.card : undefined
+    if (!card || card.streaming || card.noProvider) return
+    setCardInputs((m) => ({ ...m, [lookupId]: '' }))
+    setItems((xs) =>
+      xs.map((x) =>
+        x.kind === 'nested' && x.card.lookupId === lookupId
+          ? {
+              ...x,
+              card: { ...x.card, streaming: true, bubbles: [...x.card.bubbles, { role: 'user', content: q }] }
+            }
+          : x
+      )
+    )
+    await window.api.aiFollowup(lookupId, q)
+  }
+
   const manualMode = manual && !!session
   const lastItem = items[items.length - 1]
   const lastBubbleIdx = lastBubbleIndex(items)
@@ -477,17 +500,28 @@ export default function App(): React.JSX.Element {
                   <div className="text-xs text-amber-300">尚未配置 AI 供应商</div>
                 ) : (
                   <>
-                    {it.card.bubbles.map((b, j) => (
-                      <div key={j} className="md-body">
-                        <Md>{b.content}</Md>
-                        {it.card.streaming && j === it.card.bubbles.length - 1 && (
-                          <span className="stream-cursor text-teal-400" />
+                    <div className="space-y-2">
+                      {it.card.bubbles.map((b, j) =>
+                        b.role === 'user' ? (
+                          <div key={j} className="flex justify-end">
+                            <div className="max-w-[85%] rounded-lg rounded-br-sm bg-teal-600 px-2.5 py-1 text-[12px] text-white">
+                              {b.content}
+                            </div>
+                          </div>
+                        ) : (
+                          <div key={j} className="md-body">
+                            <Md>{b.content}</Md>
+                            {it.card.streaming && j === it.card.bubbles.length - 1 && (
+                              <span className="stream-cursor text-teal-400" />
+                            )}
+                          </div>
+                        )
+                      )}
+                      {it.card.streaming &&
+                        it.card.bubbles[it.card.bubbles.length - 1]?.role === 'user' && (
+                          <div className="text-xs text-zinc-500">正在讲解…</div>
                         )}
-                      </div>
-                    ))}
-                    {it.card.streaming && it.card.bubbles.length === 0 && (
-                      <div className="text-xs text-zinc-500">正在讲解…</div>
-                    )}
+                    </div>
                     {it.card.fromCache && !it.card.streaming && (
                       <div className="mt-1 text-right text-[10px] text-zinc-600">⚡ 缓存</div>
                     )}
@@ -496,6 +530,29 @@ export default function App(): React.JSX.Element {
                         ⚠️ {it.card.error}
                       </div>
                     )}
+                    {/* 和这个词继续交流：追问记录在该词条的追问 AI 中 */}
+                    <div className="mt-2.5 flex items-center gap-1.5 border-t border-zinc-800/80 pt-2.5">
+                      <input
+                        value={cardInputs[it.card.lookupId] ?? ''}
+                        onChange={(e) =>
+                          setCardInputs((m) => ({ ...m, [it.card.lookupId]: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.nativeEvent.isComposing)
+                            void sendNested(it.card.lookupId)
+                        }}
+                        placeholder={`和「${it.card.text}」交流…`}
+                        disabled={it.card.streaming}
+                        className="min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-800/60 px-2.5 py-1 text-[12px] text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-teal-500 disabled:opacity-50"
+                      />
+                      <button
+                        onClick={() => void sendNested(it.card.lookupId)}
+                        disabled={it.card.streaming || !(cardInputs[it.card.lookupId] ?? '').trim()}
+                        className="rounded-md bg-teal-600 px-2.5 py-1 text-[12px] font-medium text-white transition hover:bg-teal-500 disabled:opacity-40"
+                      >
+                        发送
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
