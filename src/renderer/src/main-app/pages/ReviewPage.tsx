@@ -96,11 +96,21 @@ export function ReviewPage({
       answered: undefined,
       relearn: undefined
     }))
-    if (!cards.length) return
+    // 拼写只练「有释义的英文单词」；句子没有拼写意义，不纳入拼写队列
+    const pool =
+      m === 'spelling'
+        ? cards.filter(
+            (c) =>
+              c.entry.type === 'word' &&
+              !isZhText(c.entry.text) &&
+              !!(c.entry.structured?.definitionZh || c.entry.structured?.translation)
+          )
+        : cards
+    if (!pool.length) return
     setMode(m)
     setPractice(true)
     setDoneCount(null)
-    resetSession(cards)
+    resetSession(pool)
     setPhase('session')
   }
 
@@ -324,9 +334,10 @@ function ReviewSession({
   const answerText = s?.definitionZh || s?.translation || ''
   // 默默背单词式提示：例句挖空目标词
   const blank = s?.examples?.length ? blankExample(s.examples[0].en, entry.text) : null
-  // 拼写只对「有释义的英文单词」生效；句子/中文词/无释义卡自动按识记翻面处理
+  // 拼写只对「有释义的英文单词」生效；句子/中文词/无释义卡自动按识记翻面处理（否则无法作答会卡死）
   const spellingEligible = entry.type === 'word' && !isZh && !!answerText
   const spelling = mode === 'spelling' && spellingEligible
+  const recallLike = mode === 'recall' || !spellingEligible
 
   // 拼写输入框：换卡后自动聚焦
   useEffect(() => {
@@ -335,22 +346,37 @@ function ReviewSession({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      // 空格翻面仅识记模式（拼写模式的空格是输入内容）
-      if (e.key === ' ' && mode === 'recall') {
+      // 空格翻面仅识记类卡片（拼写模式的空格是输入内容）
+      if (e.key === ' ' && recallLike) {
         e.preventDefault()
         setFlipped((f) => !f)
         return
       }
-      // 揭示后：数字键自评（认识/模糊/不认识）
-      const grading = mode === 'recall' ? flipped : spellingStatus === 'revealed'
-      if (grading && ['1', '2', '3'].includes(e.key)) {
+      // 识记类：翻面后数字键自评（认识/模糊/不认识）
+      if (recallLike) {
+        if (flipped && ['1', '2', '3'].includes(e.key)) {
+          e.preventDefault()
+          void onAnswer(Number(e.key) as Rating, mode)
+        }
+        return
+      }
+      // 拼写：已放弃（显示讲解）时，回车 记「不认识」并进入下一个
+      if (spellingStatus === 'revealed') {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          void onAnswer(1, mode)
+        }
+        return
+      }
+      // 拼写：未放弃时 Esc 同「不会拼」按钮（输入框聚焦时由输入框处理）
+      if (e.key === 'Escape') {
         e.preventDefault()
-        void onAnswer(Number(e.key) as Rating, mode)
+        giveUp()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [mode, flipped, spellingStatus, onAnswer])
+  }, [recallLike, mode, flipped, spellingStatus, onAnswer])
 
   /** 忽略大小写、连续空白与末尾标点后比较 */
   function normalize(text: string): string {
@@ -377,13 +403,15 @@ function ReviewSession({
     }
   }
 
-  function revealAnswer(): void {
+  /** 不会拼：直接显示答案与讲解，此处不记分；按「下一个」时按「不认识」记分并回队尾 */
+  function giveUp(): void {
+    if (spellingStatus !== 'typing' && spellingStatus !== 'wrong') return
     setSpellingStatus('revealed')
     onReveal()
   }
 
-  const showBack = mode === 'recall' ? flipped : spellingStatus === 'revealed'
-  const grading = mode === 'recall' ? flipped : spellingStatus === 'revealed'
+  const showBack = recallLike ? flipped : spellingStatus === 'revealed'
+  const grading = recallLike ? flipped : spellingStatus === 'revealed'
   const showInput = spelling && (spellingStatus === 'typing' || spellingStatus === 'wrong')
 
   return (
@@ -421,7 +449,7 @@ function ReviewSession({
       <div
         className="flex min-h-0 flex-1 cursor-pointer flex-col rounded-2xl border border-zinc-800 bg-zinc-900 shadow-lg shadow-black/30"
         onClick={() => {
-          if (mode === 'recall') setFlipped((f) => !f)
+          if (recallLike) setFlipped((f) => !f)
         }}
       >
         <div className="flex flex-col items-center px-6 pb-4 pt-8">
@@ -439,50 +467,47 @@ function ReviewSession({
               )}
               {showInput && (
                 <div
-                  className="mt-6 flex w-full max-w-sm items-center gap-2"
+                  className="mt-7 flex w-full max-w-sm flex-col items-center gap-2.5"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <input
-                    ref={inputRef}
-                    autoFocus
-                    value={spellingInput}
-                    onChange={(e) => {
-                      setSpellingInput(e.target.value)
-                      if (spellingStatus === 'wrong') setSpellingStatus('typing')
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') submitSpelling()
-                      if (e.key === 'Escape') revealAnswer()
-                      e.stopPropagation()
-                    }}
-                    placeholder="输入英文后回车"
-                    className={`min-w-0 flex-1 rounded-lg border bg-zinc-800 px-3 py-2 text-center text-lg text-zinc-100 outline-none transition ${
-                      spellingStatus === 'wrong'
-                        ? 'border-red-500/60'
-                        : 'border-zinc-700 focus:border-violet-500'
-                    }`}
-                  />
+                  <div className="flex w-full items-center gap-2">
+                    <input
+                      ref={inputRef}
+                      autoFocus
+                      value={spellingInput}
+                      onChange={(e) => {
+                        setSpellingInput(e.target.value)
+                        if (spellingStatus === 'wrong') setSpellingStatus('typing')
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitSpelling()
+                        if (e.key === 'Escape') giveUp()
+                        e.stopPropagation()
+                      }}
+                      placeholder="输入英文后回车"
+                      className={`min-w-0 flex-1 rounded-lg border bg-zinc-800 px-3 py-2.5 text-center text-lg text-zinc-100 outline-none transition ${
+                        spellingStatus === 'wrong'
+                          ? 'border-red-500/60'
+                          : 'border-zinc-700 focus:border-violet-500'
+                      }`}
+                    />
+                    <button
+                      onClick={submitSpelling}
+                      className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm text-white hover:bg-violet-500"
+                    >
+                      检查
+                    </button>
+                  </div>
                   <button
-                    onClick={submitSpelling}
-                    className="rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-500"
+                    onClick={giveUp}
+                    className="text-xs text-zinc-500 transition hover:text-zinc-200"
                   >
-                    检查
+                    不会拼，直接看答案
                   </button>
                 </div>
               )}
               {spellingStatus === 'wrong' && (
-                <div className="mt-3 flex items-center gap-3 text-center text-sm text-red-400">
-                  <span>不对，再想想（回车重试，Esc 显示答案）</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      revealAnswer()
-                    }}
-                    className="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 transition hover:border-zinc-500 hover:text-zinc-100"
-                  >
-                    显示答案
-                  </button>
-                </div>
+                <div className="mt-3 text-center text-sm text-red-400">不对，再想想（回车重试）</div>
               )}
               {spellingStatus === 'correct' && (
                 <div className="mt-3 text-sm text-teal-400">✅ 拼写正确</div>
@@ -491,9 +516,15 @@ function ReviewSession({
           ) : (
             <>
               <div className="select-text text-center text-2xl font-semibold text-zinc-100">
-                {showBack && spelling ? `答案：${entry.text}` : entry.text}
+                {entry.text}
               </div>
-              {mode === 'recall' && !flipped && (
+              {showBack && spelling && (s?.phonetic || s?.pos) && (
+                <div className="mt-2 select-text text-sm text-zinc-500">
+                  {s?.phonetic && <span className="mr-2">{s.phonetic}</span>}
+                  {s?.pos && <span className="text-teal-500">{s.pos}</span>}
+                </div>
+              )}
+              {recallLike && !flipped && (
                 <>
                   {(s?.phonetic || s?.pos) && (
                     <div className="mt-2 select-text text-sm text-zinc-500">
@@ -511,11 +542,8 @@ function ReviewSession({
             </>
           )}
 
-          {mode === 'recall' && !flipped && (
+          {recallLike && !flipped && (
             <div className="mt-5 text-xs text-zinc-600">点击卡片或按空格显示答案</div>
-          )}
-          {spelling && spellingStatus === 'typing' && (
-            <div className="mt-5 text-xs text-zinc-600">输入后回车检查；不会就按 Esc 显示答案</div>
           )}
         </div>
 
@@ -597,8 +625,8 @@ function ReviewSession({
         )}
       </div>
 
-      {/* 自评区（默默背单词式三档） */}
-      {grading && (
+      {/* 自评区：识记类三档；拼写不会拼后不追问，直接「下一个」（记不认识回队尾） */}
+      {grading && recallLike && (
         <div className="mt-4 flex justify-center gap-2.5">
           {SELF_RATINGS.map((r) => (
             <button
@@ -610,6 +638,16 @@ function ReviewSession({
               {r.label}
             </button>
           ))}
+        </div>
+      )}
+      {grading && !recallLike && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={() => void onAnswer(1, mode)}
+            className="flex items-center gap-2 rounded-xl bg-violet-600 px-8 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-violet-500"
+          >
+            下一个 <span className="rounded bg-white/25 px-1.5 text-xs">回车</span>
+          </button>
         </div>
       )}
     </div>
