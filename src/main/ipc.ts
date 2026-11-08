@@ -166,4 +166,10 @@ export function registerIpc(): void {
   ipcMain.handle(CH.APP_HIDE_POPUP, () => hidePopup())
   ipcMain.handle(CH.APP_LOOKUP_TEXT, (_e, text: string) => lookupTextFromRenderer(text))
   ipcMain.handle(CH.APP_OPEN_DATA_DIR, () => void shell.openPath(app.getPath('userData')))
+  // 用系统浏览器打开外部链接；只放行 GitHub，防止渲染层被注入后随意唤起 URL
+  ipcMain.handle(CH.APP_OPEN_EXTERNAL, (_e, url: string) => {
+    if (typeof url === 'string' && url.startsWith('https://github.com/')) {
+      return void shell.openExternal(url)
+    }
+  })
 }

@@ -127,4 +127,6 @@ export interface Api {
   hidePopup(): Promise<void>
   lookupText(text: string): Promise<void>
   openDataDir(): Promise<void>
+  /** 用系统浏览器打开外部链接（主进程只放行 GitHub） */
+  openExternal(url: string): Promise<void>
 }

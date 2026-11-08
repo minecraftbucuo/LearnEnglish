@@ -62,6 +62,7 @@ const api: Api = {
   hidePopup: () => ipcRenderer.invoke(CH.APP_HIDE_POPUP),
   lookupText: (text) => ipcRenderer.invoke(CH.APP_LOOKUP_TEXT, text),
   openDataDir: () => ipcRenderer.invoke(CH.APP_OPEN_DATA_DIR),
+  openExternal: (url) => ipcRenderer.invoke(CH.APP_OPEN_EXTERNAL, url),
 }
 
 contextBridge.exposeInMainWorld('api', api)
