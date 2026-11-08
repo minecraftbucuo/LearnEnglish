@@ -85,6 +85,10 @@ export function buildLookupMessages(
   return [sys, { role: 'user', content: wrapped }]
 }
 
+/** 追问轮次插入的自由交流指引：解除首答的卡片结构与 AI_DATA 约束 */
+export const FOLLOWUP_GUIDE =
+  '从现在起进入自由交流模式：用户会继续追问、讨论或闲聊。请像耐心的语言学习伙伴一样自然对话——直接回答问题本身，简明扼要；可以适度使用列表或加粗，但不要再套「## 小节」的卡片结构，也不要输出 AI_DATA JSON 注释。仅当用户明确要求完整讲解时才恢复卡片格式。'
+
 /** 从 AI 回复中剥离并解析 AI_DATA JSON 注释 */
 export function extractAiData(
   markdown: string

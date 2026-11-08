@@ -7,10 +7,11 @@ import { getActiveProvider, getSettings } from './settings'
 import { captureSelectedText } from './capture'
 import { captureRegionByHwnd } from './screenshot'
 import { streamChat, type ChatMessage, type ChatContentPart } from './ai'
-import { buildLookupMessages, extractAiData, isSingleWord, isZhShort } from './prompts'
+import { buildLookupMessages, extractAiData, FOLLOWUP_GUIDE, isSingleWord, isZhShort } from './prompts'
 import type { LookupKind } from './prompt-kinds'
 import { isZhContent } from '@shared/text'
 import {
+  addEntryChat,
   findEntryByText,
   getEntryById,
   incrementLookupCount,
@@ -19,6 +20,7 @@ import {
   upsertLookup
 } from './db'
 import {
+  broadcast,
   getOverlayWindow,
   getPopupWindow,
   hideOverlay,
@@ -286,6 +288,12 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
   if (force || session.messages.length === 0) {
     session.kind = kind
     session.messages = buildLookupMessages(kind, session.text, settings.promptCards)
+  } else if (!session.messages.some((m) => m.role === 'system' && m.content === FOLLOWUP_GUIDE)) {
+    // 首次追问：在用户问题前插入自由交流指引，解除首答的卡片结构与 AI_DATA 约束
+    session.messages.splice(session.messages.length - 1, 0, {
+      role: 'system',
+      content: FOLLOWUP_GUIDE
+    })
   }
 
   const model = provider.chatModel
@@ -376,10 +384,22 @@ function finishStream(
     session.messages.push({ role: 'assistant', content: markdown })
   }
 
+  // 追问轮次同步落库：弹窗里的提问与回答写入生词本的「追问 AI」记录（同一份对话，两端可见）
+  if (!isInitial && markdown && session.entryId) {
+    const last = [...session.messages].reverse().find((m) => m.role === 'user')
+    // ChatMessage.content 类型上允许图片分片（仅截图 OCR 那次独立调用在用，不进会话），
+    // 查询会话的用户消息实际恒为文本；此守卫只为满足类型检查
+    const q = typeof last?.content === 'string' ? last.content : undefined
+    if (q) addEntryChat(session.entryId, q, markdown)
+  }
+
   // 重新生成也是一次真实查询：+1（本流内新建的词条已由 upsertLookup 计过）
   if (regenerate && preExisting && finalEntry) {
     finalEntry = incrementLookupCount(finalEntry.id) ?? finalEntry
   }
+
+  // 词条可能新建/更新/追问追加：通知生词本等界面刷新
+  broadcast(CH.ENTRIES_CHANGED)
 
   const payload: AiDonePayload = {
     lookupId: session.id,
@@ -423,6 +443,7 @@ export function starCurrent(
   const next = !session.isStarred
   const updated = setStarred(entry.id, next)
   session.isStarred = next
+  broadcast(CH.ENTRIES_CHANGED)
   return { starred: session.isStarred, entryId: updated?.id ?? entry.id }
 }
 
@@ -517,9 +538,11 @@ export async function relookupEntry(
     return
   }
   // 重查就是一次真实查询：讲解覆盖为最新结果，查词次数 +1
+  const refreshed = incrementLookupCount(saved.id) ?? saved
+  broadcast(CH.ENTRIES_CHANGED)
   relookupSend(sender, CH.ENTRY_RELOOKUP_DONE, {
     relookupId,
-    entry: incrementLookupCount(saved.id) ?? saved,
+    entry: refreshed,
     markdown
   })
 }
