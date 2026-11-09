@@ -30,6 +30,8 @@ const api: Api = {
   entryToggleStar: (id) => ipcRenderer.invoke(CH.ENTRY_TOGGLE_STAR, id),
   entryToggleSuspend: (id) => ipcRenderer.invoke(CH.ENTRY_TOGGLE_SUSPEND, id),
   entryDelete: (id) => ipcRenderer.invoke(CH.ENTRY_DELETE, id),
+  entryUpdateText: (id, text, force = false) =>
+    ipcRenderer.invoke(CH.ENTRY_UPDATE_TEXT, id, text, force),
   entryChatAsk: (entryId, question, chatId) =>
     ipcRenderer.invoke(CH.ENTRY_CHAT_ASK, entryId, question, chatId),
   entryChatAbort: (chatId) => ipcRenderer.invoke(CH.ENTRY_CHAT_ABORT, chatId),

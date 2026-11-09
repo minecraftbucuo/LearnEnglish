@@ -12,6 +12,7 @@ import {
   addEntryChat,
   deleteEntry,
   deleteEntryChat,
+  findTextDuplicate,
   getPracticeQueue,
   getEntryById,
   getReviewQueue,
@@ -20,7 +21,8 @@ import {
   listEntryChats,
   markIntroduced,
   setSuspended,
-  setStarred
+  setStarred,
+  updateEntryText
 } from './db'
 import { getActiveProvider, getSettings, setSettings } from './settings'
 import { streamChat, testProvider } from './ai'
@@ -79,6 +81,15 @@ export function registerIpc(): void {
     const result = deleteEntry(id)
     broadcast(CH.ENTRIES_CHANGED)
     return result
+  })
+  ipcMain.handle(CH.ENTRY_UPDATE_TEXT, (_e, id: number, text: string, force?: boolean) => {
+    const t = String(text ?? '').trim()
+    if (!t || t.length > 2000) return { ok: false as const, message: '文本为空或过长' }
+    if (!force && findTextDuplicate(t, id)) return { ok: false as const, duplicate: true }
+    const entry = updateEntryText(id, t)
+    if (!entry) return { ok: false as const, message: '词条不存在' }
+    broadcast(CH.ENTRIES_CHANGED)
+    return { ok: true as const, entry }
   })
 
   // ---- 追问（流式，边生成边推送） ----

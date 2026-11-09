@@ -96,6 +96,12 @@ export interface Api {
   entryToggleStar(id: number): Promise<Entry | null>
   entryToggleSuspend(id: number): Promise<Entry | null>
   entryDelete(id: number): Promise<void>
+  /** 修正词条文本。duplicate=true 表示存在同文本的其他词条且未保存（重试时传 force） */
+  entryUpdateText(
+    id: number,
+    text: string,
+    force?: boolean
+  ): Promise<{ ok: boolean; duplicate?: boolean; message?: string }>
   entryChatAsk(entryId: number, question: string, chatId: string): Promise<void>
   entryChatAbort(chatId: string): Promise<void>
   entryChatList(entryId: number): Promise<EntryChat[]>

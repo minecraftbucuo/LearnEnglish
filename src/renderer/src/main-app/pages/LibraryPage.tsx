@@ -290,6 +290,8 @@ function EntryDetail({
     entryIdRef.current = entry.id
     setPending(null) // 切换词条：进行中的流继续在后台完成并存库
     setRelookup(null)
+    editingRef.current = false // 切换词条：退出文本编辑态
+    setEditingText(false)
   }, [entry.id])
 
   useEffect(() => {
@@ -364,6 +366,38 @@ function EntryDetail({
   const isZh = isZhText(entry.text)
   // 中→英查询的释义都在 equivalents（完整讲解里），意思栏可能一项都没有，此时不渲染空壳
   const hasMeaning = !!(s?.phonetic || s?.pos || s?.definitionZh || s?.translation || s?.definitionEn)
+
+  // 标题点击编辑：修正抓取缺漏字母等（AI 能猜对但记录的文本是错的）
+  const [editingText, setEditingText] = useState(false)
+  const [editVal, setEditVal] = useState('')
+  const editingRef = useRef(false)
+
+  function startEditText(): void {
+    setEditVal(entry.text)
+    editingRef.current = true
+    setEditingText(true)
+  }
+  function cancelEditText(): void {
+    editingRef.current = false
+    setEditingText(false)
+  }
+  async function saveEditText(): Promise<void> {
+    if (!editingRef.current) return
+    editingRef.current = false
+    setEditingText(false)
+    const t = editVal.trim()
+    if (!t || t === entry.text) return
+    let r = await window.api.entryUpdateText(entry.id, t)
+    if (!r.ok && r.duplicate) {
+      if (!window.confirm(`已存在文本相同的词条，仍要保存为「${t.slice(0, 40)}」吗？`)) return
+      r = await window.api.entryUpdateText(entry.id, t, true)
+    }
+    if (!r.ok) {
+      window.alert(r.message ?? '保存失败')
+      return
+    }
+    await onChanged()
+  }
   return (
     <aside
       className="flex shrink-0 flex-col border-l border-zinc-800 bg-zinc-900"
@@ -401,7 +435,27 @@ function EntryDetail({
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
         <div>
-          <div className="select-text text-lg font-semibold text-zinc-100">{entry.text}</div>
+          {editingText ? (
+            <input
+              autoFocus
+              value={editVal}
+              onChange={(e) => setEditVal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEditText()
+                else if (e.key === 'Escape') cancelEditText()
+              }}
+              onBlur={() => void saveEditText()}
+              className="w-full rounded-lg border border-teal-500 bg-zinc-800/60 px-2 py-1 text-lg font-semibold text-zinc-100 outline-none"
+            />
+          ) : (
+            <div
+              onClick={startEditText}
+              title="点击修正文本（抓取缺漏字母时用）；改完可点「重新查询」按新文本重讲"
+              className="cursor-pointer select-text text-lg font-semibold text-zinc-100 transition hover:text-teal-300"
+            >
+              {entry.text}
+            </div>
+          )}
           <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-500">
             <span>{entry.type === 'word' ? '单词/短语' : '句子/段落'}</span>
             <span>·</span>

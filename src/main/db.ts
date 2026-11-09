@@ -16,6 +16,8 @@ import type {
   StructuredData
 } from '@shared/types'
 import { dueDateFrom, schedule } from '@shared/srs'
+import { isZhContent } from '@shared/text'
+import { isSingleWord, isZhShort } from './prompts'
 
 let db: Database.Database
 
@@ -241,6 +243,39 @@ export function findEntryByText(text: string): Entry | null {
     .prepare("SELECT * FROM entries WHERE text = ? AND source != 'image'")
     .get(text) as EntryRow | undefined
   return r ? rowToEntry(r) : null
+}
+
+/** 是否存在与 text 相同文本的其他词条（修正文本前提示用户） */
+export function findTextDuplicate(text: string, excludeId: number): Entry | null {
+  const t = text.trim()
+  if (!t) return null
+  const r = db
+    .prepare("SELECT * FROM entries WHERE text = ? AND source != 'image' AND id != ?")
+    .get(t, excludeId) as EntryRow | undefined
+  return r ? rowToEntry(r) : null
+}
+
+/** 修改词条文本（修正抓取缺漏字母等）：按新文本重算词/句类型并刷新 updated_at。
+ *  讲解内容不变，保存后可在详情页「重新查询」按正确文本重新生成。 */
+export function updateEntryText(id: number, text: string): Entry | null {
+  const t = text.trim()
+  if (!t) return getEntryById(id)
+  const cur = getEntryById(id)
+  if (!cur || cur.text === t) return cur
+  const type: EntryType = isZhContent(t)
+    ? isZhShort(t)
+      ? 'word'
+      : 'sentence'
+    : isSingleWord(t)
+      ? 'word'
+      : 'sentence'
+  db.prepare('UPDATE entries SET text = ?, type = ?, updated_at = ? WHERE id = ?').run(
+    t,
+    type,
+    nowIso(),
+    id
+  )
+  return getEntryById(id)
 }
 
 /** 程序化给例句里的目标词加粗（含常见屈折变化；幂等：先剥离旧加粗再统一加）。
