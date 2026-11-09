@@ -1,7 +1,7 @@
 import { globalShortcut } from 'electron'
 import { getSettings } from './settings'
 import { triggerLookup, triggerScreenshot } from './lookup'
-import { showMainWindow } from './windows'
+import { showMainWindow, restorePopup } from './windows'
 
 export function registerShortcuts(): void {
   unregisterShortcuts()
@@ -9,7 +9,8 @@ export function registerShortcuts(): void {
   const map: Record<string, () => void> = {
     lookup: () => void triggerLookup(),
     screenshot: () => void triggerScreenshot(),
-    main: () => showMainWindow()
+    main: () => showMainWindow(),
+    recover: () => restorePopup()
   }
   for (const [action, key] of Object.entries(hotkeys)) {
     if (!key) continue

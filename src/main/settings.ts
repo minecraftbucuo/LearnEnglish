@@ -5,7 +5,7 @@ import type { AppSettings } from '@shared/types'
 const DEFAULTS: AppSettings = {
   providers: [],
   activeProviderId: '',
-  hotkeys: { lookup: 'Alt+Q', screenshot: 'Alt+X', main: 'Alt+E' },
+  hotkeys: { lookup: 'Alt+Q', screenshot: 'Alt+X', main: 'Alt+E', recover: 'Alt+W' },
   dailyNew: 20,
   hideOnBlur: true,
   autostart: false,

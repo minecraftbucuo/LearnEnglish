@@ -104,12 +104,13 @@ export function SettingsPage(): React.JSX.Element {
           title="全局快捷键"
           desc="点击输入框后按下组合键即可录新。与系统/其他软件冲突时注册会失败，换一个即可。"
         >
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {(
               [
                 ['lookup', '查词（抓取选中文本）'],
                 ['screenshot', '截图查询'],
-                ['main', '打开主窗口']
+                ['main', '打开主窗口'],
+                ['recover', '找回查词弹窗']
               ] as const
             ).map(([key, label]) => (
               <HotkeyInput

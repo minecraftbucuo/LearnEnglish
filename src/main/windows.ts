@@ -151,6 +151,17 @@ export function hidePopup(): void {
   }
 }
 
+/** Alt+W：找回上一个查词弹窗。
+ * 弹窗是单例且关闭只是 hide()，渲染层内容仍在，重新 show 即可还原；
+ * 只保留最近一次查询的内容（新查询会重置弹窗 UI，天然顶替旧的）。
+ * 弹窗不存在（本次会话还没查过词）或正在显示时不做任何事。 */
+export function restorePopup(): void {
+  if (!popupWindow || popupWindow.isDestroyed()) return
+  if (popupWindow.isVisible()) return
+  popupWindow.show()
+  popupWindow.focus()
+}
+
 export function getPopupWindow(): BrowserWindow | null {
   return popupWindow && !popupWindow.isDestroyed() ? popupWindow : null
 }

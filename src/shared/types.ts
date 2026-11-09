@@ -121,6 +121,7 @@ export interface HotkeyConfig {
   lookup: string // 默认 Alt+Q
   screenshot: string // 默认 Alt+X
   main: string // 默认 Alt+E
+  recover: string // 默认 Alt+W：找回上一个查词弹窗
 }
 
 /** 提示词要求卡：勾选启用，程序按顺序拼装为最终提示词 */
