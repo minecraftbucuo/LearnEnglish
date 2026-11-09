@@ -3,6 +3,7 @@
 
   [![version](https://img.shields.io/badge/version-0.1.3-14b8a6?style=flat-square&labelColor=09090b)](https://github.com/minecraftbucuo/LearnEnglish/releases/latest)
   [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-38bdf8?style=flat-square&labelColor=09090b&logo=windows&logoColor=38bdf8)](#-下载安装)
+  [![Linux](https://img.shields.io/badge/Linux-x64-fcc624?style=flat-square&labelColor=09090b&logo=linux&logoColor=black)](#-下载安装)
   [![Electron](https://img.shields.io/badge/Electron-37-8b5cf6?style=flat-square&labelColor=09090b&logo=electron&logoColor=a78bfa)](https://www.electronjs.org/)
   [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&labelColor=09090b&logo=react&logoColor=61dafb)](https://react.dev/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&labelColor=09090b&logo=typescript&logoColor=3178c6)](https://www.typescriptlang.org/)
@@ -31,7 +32,9 @@
 - **句子**：中文翻译、逐词精讲、语法结构分析
 - 弹窗内可继续追问，`Esc` 关闭，`Ctrl+S` 划入重点
 
-### 📷 截图查询 — `Alt+X`
+> **平台差异**：Windows 下自动抓取选中文本；Linux（Wayland）下弹出查询窗后手动输入单词查询（Linux 下自动抓取与截图查询在后续版本支持）。
+
+### 📷 截图查询 — `Alt+X`（仅 Windows）
 
 框选屏幕任意区域，视觉模型 OCR 后按词/句格式讲解。PDF 里的、图片里的、视频字幕里的英文，都能查。
 
@@ -69,8 +72,18 @@ Anki 同款 SM-2 算法，学新词 + 巩固旧词：
 
 ## 🚀 下载安装
 
-1. 前往 [**Releases**](https://github.com/minecraftbucuo/LearnEnglish/releases/latest) 下载最新的 `LearnEnglish Setup x.x.x.exe`
+**Windows**
+
+1. 前往 [**Releases**](https://github.com/minecraftbucuo/LearnEnglish/releases/latest) 下载 `LearnEnglish Setup x.x.x.exe`
 2. 双击安装，可自选安装目录
+
+**Linux（x64）**
+
+1. 前往 [**Releases**](https://github.com/minecraftbucuo/LearnEnglish/releases/latest) 下载 `LearnEnglish-x.x.x-x64.AppImage`
+2. `chmod +x LearnEnglish-*.AppImage` 加执行权限后直接运行（部分发行版需安装 libfuse2）
+
+**通用**
+
 3. 首次启动进入 **设置**，填入任一 OpenAI 兼容服务的 API Key
 4. 在任意应用里选个单词，按 `Alt+Q` ✨
 
@@ -83,10 +96,10 @@ pnpm install     # 安装依赖（自动对 better-sqlite3 做 Electron ABI 重�
 pnpm dev         # 开发模式（主进程热重启 + 渲染进程 HMR）
 pnpm typecheck   # 类型检查
 pnpm build       # 构建产物
-pnpm dist        # 打包 NSIS 安装包（输出到 dist/）
+pnpm dist        # 打包：Windows 出 NSIS 安装包，Linux 出 AppImage（输出到 dist/）
 ```
 
-要求：Node.js ≥ 20、pnpm ≥ 9、Windows 10/11。
+要求：Node.js ≥ 20、pnpm ≥ 9；Windows 10/11 或 Linux x64（X11 / KDE Wayland）。
 
 ## 🧱 技术栈
 
@@ -97,15 +110,15 @@ pnpm dist        # 打包 NSIS 安装包（输出到 dist/）
 | 界面 | React 19 + Tailwind CSS 4 |
 | 语言 | TypeScript 5.9 |
 | 本地存储 | better-sqlite3（SQLite / WAL，零服务依赖） |
-| 系统能力 | koffi 调用 Win32 SendInput 抓取选中文本 |
+| 系统能力 | koffi 调用 Win32 API（Windows 划词抓取与抓屏；Linux 划词暂走手动输入） |
 
 ## 📁 数据与隐私
 
-| 内容 | 位置 |
-| :--- | :--- |
-| 数据库 | `%APPDATA%\LearnEnglish\learn-english.db` |
-| 配置与 API Key | `%APPDATA%\LearnEnglish\config.json` |
-| 界面偏好 | `%APPDATA%\LearnEnglish\ui-prefs.json` |
+| 内容 | Windows | Linux |
+| :--- | :--- | :--- |
+| 数据库 | `%APPDATA%\LearnEnglish\learn-english.db` | `~/.config/LearnEnglish/learn-english.db` |
+| 配置与 API Key | `%APPDATA%\LearnEnglish\config.json` | `~/.config/LearnEnglish/config.json` |
+| 界面偏好 | `%APPDATA%\LearnEnglish\ui-prefs.json` | `~/.config/LearnEnglish/ui-prefs.json` |
 
 > AI API Key 仅保存在本机 `config.json`。除你配置的 AI 服务外，应用不会向任何服务器发送数据。
 

@@ -19,4 +19,13 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   shortcutName: LearnEnglish
+linux:
+  icon: build/icon.png
+  category: Education
+  target:
+    - target: AppImage
+      arch:
+        - x64
+appImage:
+  artifactName: ${productName}-${version}-${arch}.AppImage
 npmRebuild: false
