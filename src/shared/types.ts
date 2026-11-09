@@ -159,6 +159,7 @@ export interface LookupStartPayload {
   capturing?: boolean // true = 正在抓取/识别文本（弹窗先显示占位状态）
   cachedMarkdown?: string | null // 命中缓存的历史讲解（有值则弹窗直接显示，不调 API）
   nested?: boolean // true = 弹窗内嵌套查询（追加卡片，不重置弹窗）
+  context?: string | null // 嵌套查询的句子上下文（句中释义模式）
 }
 
 export interface AiDonePayload {

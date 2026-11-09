@@ -19,6 +19,7 @@ interface NestedCard {
   starred: boolean
   noProvider: boolean
   fromCache: boolean
+  context: string | null // 句中释义模式：双击所在的原句
 }
 
 /** 正文时间线：对话气泡与嵌套查询卡片按发生顺序混排 */
@@ -79,7 +80,8 @@ export default function App(): React.JSX.Element {
             text: p.text,
             cachedMarkdown: p.cachedMarkdown ?? null,
             isStarred: p.isStarred,
-            noProvider: p.noProvider
+            noProvider: p.noProvider,
+            context: p.context ?? null
           })
           return
         }
@@ -234,6 +236,7 @@ export default function App(): React.JSX.Element {
     cachedMarkdown: string | null
     isStarred: boolean
     noProvider: boolean
+    context: string | null
   }): void {
     const fromCache = !!n.cachedMarkdown
     setItems((xs) => [
@@ -248,11 +251,19 @@ export default function App(): React.JSX.Element {
           error: null,
           starred: n.isStarred,
           noProvider: n.noProvider,
-          fromCache
+          fromCache,
+          context: n.context
         }
       }
     ])
     if (!fromCache && !n.noProvider) void window.api.aiStart(n.lookupId)
+  }
+
+  /** 根查询文本是否是"句子"（镜像主进程 isSingleWord / isZhShort 的粗判） */
+  function isSentenceText(t: string): boolean {
+    if (isZhText(t)) return t.length > 12 || /[。！？；，、,.!?;]/.test(t)
+    const hasSpace = /\s/.test(t)
+    return t.length > 32 || (hasSpace && !/^[A-Za-z'-]+ [A-Za-z'-]+$/.test(t))
   }
 
   async function dblClickLookup(): Promise<void> {
@@ -260,9 +271,22 @@ export default function App(): React.JSX.Element {
     if (!sel || sel.length > 48) return
     const isZh = isZhText(sel)
     if (!isZh && sel.split(/\s+/).length > 2) return
+    // 句中释义：双击的词就在当前查询的句子里 → 把原句作为上下文传入
+    const root = (session?.text ?? '').trim()
+    const context =
+      root && isSentenceText(root) && root.toLowerCase().includes(sel.toLowerCase())
+        ? root
+        : undefined
     try {
-      const n: NestedLookupResult = await window.api.nestedLookup(sel)
-      pushNestedCard(n)
+      const n: NestedLookupResult = await window.api.nestedLookup(sel, context)
+      pushNestedCard({
+        lookupId: n.lookupId,
+        text: n.text,
+        cachedMarkdown: n.cachedMarkdown,
+        isStarred: n.isStarred,
+        noProvider: n.noProvider,
+        context: n.context
+      })
     } catch {
       // 无效文本，忽略
     }
@@ -449,12 +473,15 @@ export default function App(): React.JSX.Element {
               <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-1.5">
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] ${
-                    isZhText(it.card.text)
-                      ? 'bg-violet-500/15 text-violet-300'
-                      : 'bg-teal-500/15 text-teal-300'
+                    it.card.context
+                      ? 'bg-amber-500/15 text-amber-300'
+                      : isZhText(it.card.text)
+                        ? 'bg-violet-500/15 text-violet-300'
+                        : 'bg-teal-500/15 text-teal-300'
                   }`}
+                  title={it.card.context ?? undefined}
                 >
-                  {isZhText(it.card.text) ? '中→英' : '词'}
+                  {it.card.context ? '句中' : isZhText(it.card.text) ? '中→英' : '词'}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-zinc-200">
                   {it.card.text}

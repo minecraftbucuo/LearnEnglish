@@ -1,7 +1,7 @@
 {
   "name": "learn-english",
   "productName": "LearnEnglish",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "快捷查词 + AI 讲解 + 间隔重复复习的英语学习工具",
   "main": "./out/main/index.js",
   "private": true,

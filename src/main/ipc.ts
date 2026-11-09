@@ -53,7 +53,9 @@ export function registerIpc(): void {
     followUp(lookupId, question)
   )
   ipcMain.handle(CH.AI_ABORT, (_e, lookupId: string) => abortAi(lookupId))
-  ipcMain.handle(CH.AI_NESTED_LOOKUP, (_e, text: string) => createNestedLookup(text))
+  ipcMain.handle(CH.AI_NESTED_LOOKUP, (_e, text: string, context?: string) =>
+    createNestedLookup(text, context)
+  )
   ipcMain.handle(CH.STAR_CURRENT, (_e, lookupId: string) => starCurrent(lookupId))
 
   // ---- 生词本 ----

@@ -46,9 +46,11 @@ export interface SelectionRect {
 export interface NestedLookupResult {
   lookupId: string
   text: string
+  entryId: number | null
   cachedMarkdown: string | null
   isStarred: boolean
   noProvider: boolean
+  context: string | null // 句中释义模式的句子上下文
 }
 
 /** 生词本详情重新查询：事件负载 */
@@ -83,7 +85,7 @@ export interface Api {
 
   // ---- AI 查询 ----
   aiStart(lookupId: string, force?: boolean): Promise<void>
-  nestedLookup(text: string): Promise<NestedLookupResult>
+  nestedLookup(text: string, context?: string): Promise<NestedLookupResult>
   aiFollowup(lookupId: string, question: string): Promise<void>
   aiAbort(lookupId: string): Promise<void>
   starCurrent(lookupId: string): Promise<{ starred: boolean; entryId: number | null }>

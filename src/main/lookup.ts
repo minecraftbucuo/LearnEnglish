@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { BrowserWindow, screen } from 'electron'
 import { CH } from '@shared/channels'
 import type { AiDonePayload, EntrySource, EntryType, StructuredData } from '@shared/types'
+import type { NestedLookupResult } from '@shared/api'
 import { getActiveProvider, getSettings } from './settings'
 import { captureSelectedText } from './capture'
 import { captureRegionByHwnd } from './screenshot'
@@ -38,9 +39,17 @@ interface LookupSession {
   messages: ChatMessage[]
   controller: AbortController | null
   streaming: boolean
+  context?: string // 句中释义：嵌套查询所在的原句（有值时提示词要求结合上下文讲解）
 }
 
 const sessions = new Map<string, LookupSession>()
+
+/** 句中释义的系统说明：让模型结合原句解释单词在句中的含义，而非孤立讲词 */
+function contextGuide(word: string, context: string): string {
+  return `用户正在阅读下面这句话，并双击选中了其中的「${word}」：
+「${context}」
+请结合上下文解释这个词/短语在句中的含义：它在句子里具体是什么意思、什么词性、与句中哪些词搭配，整句如何理解它；可以顺带对比它最常见的其他含义以帮助区分。无需套用完整的单词卡片结构，直接讲解即可。`
+}
 
 function popupSend(channel: string, payload: unknown): void {
   getPopupWindow()?.webContents.send(channel, payload)
@@ -76,6 +85,7 @@ export async function triggerLookup(): Promise<void> {
           hasStructured: !!nl.cachedMarkdown,
           cachedMarkdown: nl.cachedMarkdown,
           noProvider: nl.noProvider,
+          context: nl.context,
           nested: true
         })
       } else {
@@ -275,20 +285,25 @@ function startLookup(p: {
   })
 }
 
-/** 弹窗内嵌套查询：创建会话但不重置弹窗 UI（弹窗以卡片形式追加展示） */
+/** 弹窗内嵌套查询：创建会话但不重置弹窗 UI（弹窗以卡片形式追加展示）。
+ * context 为嵌套查询所在的原句（句中释义模式）：双击句中单词时由弹窗传入 */
 export function createNestedLookup(
-  text: string
-): { lookupId: string; text: string; entryId: number | null; cachedMarkdown: string | null; isStarred: boolean; noProvider: boolean } {
+  text: string,
+  context?: string
+): NestedLookupResult {
   const t = text.trim()
   if (!t || t.length > 200) throw new Error('无效查询文本')
+  const ctx = context?.trim()
   const { session, existing, noProvider } = createSession({ text: t, source: 'selection' })
+  if (ctx && ctx.length <= 2000) session.context = ctx
   return {
     lookupId: session.id,
     text: t,
     entryId: session.entryId,
     cachedMarkdown: existing?.markdown ?? null,
     isStarred: session.isStarred,
-    noProvider
+    noProvider,
+    context: session.context ?? null
   }
 }
 
@@ -310,14 +325,17 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
     const pending = !force && last?.role === 'user' ? last : undefined
     session.kind = kind
     session.messages = buildLookupMessages(kind, session.text, settings.promptCards)
+    // 句中释义：追加原句上下文说明（位于用户问题之前，仅首答构建时注入一次）
+    if (session.context) session.messages.push({ role: 'system', content: contextGuide(session.text, session.context) })
     if (pending) session.messages.push(pending)
   }
   if (
     !force &&
-    session.messages.length > 2 &&
+    session.messages.some((m) => m.role === 'assistant') &&
     !session.messages.some((m) => m.role === 'system' && m.content === FOLLOWUP_GUIDE)
   ) {
     // 追问轮次：在最新用户问题前插入自由交流指引，解除首答的卡片结构与 AI_DATA 约束
+    // （判定依据是已有 assistant 回答，而不是消息条数——句中释义会多带一条 context 系统消息）
     session.messages.splice(session.messages.length - 1, 0, {
       role: 'system',
       content: FOLLOWUP_GUIDE
@@ -327,8 +345,9 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
   const model = provider.chatModel
   session.controller = new AbortController()
   session.streaming = true
-  // 首次回答（非追问）才写入缓存
-  const isInitial = force || session.messages.length <= 2
+  // 首次回答（非追问）才写入缓存；判定依据是会话里是否已有 assistant 回答，
+  // 而不是消息条数（句中释义会多带一条 context 系统消息，按条数会把首答误判成追问）
+  const isInitial = force || !session.messages.some((m) => m.role === 'assistant')
   let full = ''
   const t0 = Date.now()
   let firstChunk = 0
@@ -377,6 +396,8 @@ function finishStream(
   if (!data && session.messages.length > 2) structured = null
 
   const preExisting = session.entryId ? getEntryById(session.entryId) : null
+  // 句中释义的正文是针对特定句子的解释，不作为词条的通用讲解缓存（下次双击同词应为新一轮句中释义）
+  const cacheMarkdown = isInitial && !session.context
   let finalEntry = preExisting
   if (structured && markdown) {
     const type: EntryType =
@@ -390,11 +411,11 @@ function finishStream(
       type,
       source: session.source
     })
-    const saved = saveStructured(finalEntry.id, structured, isInitial ? markdown : undefined)
+    const saved = saveStructured(finalEntry.id, structured, cacheMarkdown ? markdown : undefined)
     if (saved) finalEntry = saved
     session.entryId = finalEntry.id
     session.isStarred = finalEntry.isStarred
-  } else if (isInitial && finalEntry && markdown) {
+  } else if (cacheMarkdown && finalEntry && markdown) {
     // 模型没输出结构化数据，但正文可用：仍缓存正文
     const saved = saveStructured(finalEntry.id, null, markdown)
     if (saved) finalEntry = saved
