@@ -91,6 +91,24 @@ export async function triggerLookup(): Promise<void> {
   const noProvider = !settings.providers.length || !settings.activeProviderId
   const preId = randomUUID()
 
+  if (process.platform !== 'win32') {
+    // Linux 最小版：暂不做自动抓词（Windows 版靠 user32.dll 模拟 Ctrl+C，不可移植），
+    // 直接弹出聚焦的查询窗，复用「未抓到 → 手动输入」链路进入手动查询模式
+    showPopupNearCursor(true)
+    popupSend(CH.LOOKUP_START, {
+      lookupId: preId,
+      text: '',
+      source: 'selection',
+      entryId: null,
+      isStarred: false,
+      hasStructured: false,
+      noProvider,
+      capturing: true
+    })
+    popupSend(CH.LOOKUP_FAILED, { lookupId: preId })
+    return
+  }
+
   // 先无焦点弹窗占位（不能抢焦点，否则模拟的 Ctrl+C 会打到弹窗上）
   showPopupNearCursor(false)
   popupSend(CH.LOOKUP_START, {
@@ -117,6 +135,7 @@ let overlayScaleFactor = 1
 
 /** Alt+X：打开框选覆盖层（不预抓屏，覆盖层直接盖在活屏幕上） */
 export async function triggerScreenshot(): Promise<void> {
+  if (process.platform !== 'win32') return // Linux 暂不支持截图查询（GDI 抓屏不可移植）
   try {
     const cursor = screen.getCursorScreenPoint()
     const display = screen.getDisplayNearestPoint(cursor)

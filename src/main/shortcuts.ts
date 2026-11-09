@@ -13,6 +13,7 @@ export function registerShortcuts(): void {
   }
   for (const [action, key] of Object.entries(hotkeys)) {
     if (!key) continue
+    if (action === 'screenshot' && process.platform !== 'win32') continue // Linux 暂不支持截图查询
     const fn = map[action]
     if (!fn) continue
     const ok = globalShortcut.register(key, fn)
