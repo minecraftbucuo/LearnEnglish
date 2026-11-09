@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { BrowserWindow, screen, app } from 'electron'
 import Store from 'electron-store'
 import { CH } from '@shared/channels'
@@ -24,7 +25,8 @@ function isDev(): boolean {
 
 function rendererUrl(page: string): string {
   if (isDev()) return `${process.env['ELECTRON_RENDERER_URL']}/${page}`
-  return join(__dirname, `../renderer/${page}`)
+  // 必须显式转 file:// URL：loadURL 吃无协议路径时，Windows 靠盘符魔法能解析，Linux 直接 ERR_INVALID_URL（表现为整窗黑屏）
+  return pathToFileURL(join(__dirname, `../renderer/${page}`)).toString()
 }
 
 function preloadPath(): string {
@@ -82,6 +84,8 @@ export function showMainWindow(tab?: string): void {
   if (win.isMinimized()) win.restore()
   win.show()
   win.focus()
+  // Wayland（尤其 Nvidia）下隐藏窗口首次 show 的首帧可能不提交（整窗黑屏），强制补一帧重绘
+  if (process.platform !== 'win32') win.webContents.invalidate()
 }
 
 // ---------- 查词弹窗 ----------
