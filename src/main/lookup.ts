@@ -14,10 +14,12 @@ import { isZhContent } from '@shared/text'
 import {
   addEntryChat,
   findEntryByText,
+  findTextDuplicate,
   getEntryById,
   incrementLookupCount,
   saveStructured,
   setStarred,
+  updateEntryText,
   upsertLookup
 } from './db'
 import {
@@ -505,6 +507,42 @@ export function lookupTextFromRenderer(text: string): void {
 
 export function unstarEntry(entryId: number): void {
   setStarred(entryId, false)
+}
+
+/** 弹窗标题修正查询文本（抓取缺漏字母时）：更新会话文本与类型，并同步词条记录。
+ *  之后的重新生成/追问都按修正后的文本走；duplicate=true 表示新文本与已有词条重复且未保存 */
+export function updateLookupText(
+  lookupId: string,
+  text: string,
+  force = false
+): { ok: boolean; duplicate?: boolean; entryId: number | null; message?: string } {
+  const t = text.trim()
+  if (!t || t.length > 2000) return { ok: false, entryId: null, message: '文本为空或过长' }
+  const session = sessions.get(lookupId)
+  if (!session) return { ok: false, entryId: null, message: '会话不存在' }
+  if (t === session.text) return { ok: true, entryId: session.entryId }
+  if (!force && findTextDuplicate(t, session.entryId ?? -1))
+    return { ok: false, duplicate: true, entryId: session.entryId }
+  session.text = t
+  session.kind = isZhContent(t)
+    ? isZhShort(t)
+      ? 'zh_word'
+      : 'zh_sentence'
+    : isSingleWord(t)
+      ? 'word'
+      : 'sentence'
+  if (session.entryId) {
+    updateEntryText(session.entryId, t)
+  } else {
+    // 讲解还没落库：按修正文本直接建/命中词条
+    session.entryId = upsertLookup({
+      text: t,
+      type: session.kind === 'word' || session.kind === 'zh_word' ? 'word' : 'sentence',
+      source: session.source
+    }).id
+  }
+  broadcast(CH.ENTRIES_CHANGED)
+  return { ok: true, entryId: session.entryId }
 }
 
 // ---------- 生词本重新查询 ----------

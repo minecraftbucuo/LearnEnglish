@@ -21,6 +21,8 @@ const api: Api = {
 
   aiStart: (lookupId, force = false) => ipcRenderer.invoke(CH.AI_START, lookupId, force),
   nestedLookup: (text, context) => ipcRenderer.invoke(CH.AI_NESTED_LOOKUP, text, context),
+  updateLookupText: (lookupId, text, force = false) =>
+    ipcRenderer.invoke(CH.AI_LOOKUP_UPDATE_TEXT, lookupId, text, force),
   aiFollowup: (lookupId, question) => ipcRenderer.invoke(CH.AI_FOLLOWUP, lookupId, question),
   aiAbort: (lookupId) => ipcRenderer.invoke(CH.AI_ABORT, lookupId),
   starCurrent: (lookupId) => ipcRenderer.invoke(CH.STAR_CURRENT, lookupId),

@@ -15,6 +15,7 @@ export const CH = {
   // 渲染进程 -> 主进程 invoke
   AI_START: 'ai:start',
   AI_NESTED_LOOKUP: 'ai:nestedLookup', // 弹窗内双击单词：创建嵌套查询会话
+  AI_LOOKUP_UPDATE_TEXT: 'ai:lookupUpdateText', // 弹窗标题修正查询文本
   AI_FOLLOWUP: 'ai:followup',
   AI_ABORT: 'ai:abort',
   STAR_CURRENT: 'star:current',

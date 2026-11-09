@@ -350,6 +350,49 @@ export default function App(): React.JSX.Element {
   const lastBubbleIdx = lastBubbleIndex(items)
   const title = manualMode ? '手动查询' : session ? session.text : '查词'
 
+  // 标题点击编辑：修正抓取缺漏的字母（AI 能猜对但记录的文本是错的）
+  const [editTitle, setEditTitle] = useState(false)
+  const [titleVal, setTitleVal] = useState('')
+  const titleEditingRef = useRef(false)
+
+  function startEditTitle(): void {
+    if (!session?.text || capturing) return
+    setTitleVal(session.text)
+    titleEditingRef.current = true
+    setEditTitle(true)
+  }
+  function cancelEditTitle(): void {
+    titleEditingRef.current = false
+    setEditTitle(false)
+  }
+  async function saveEditTitle(): Promise<void> {
+    if (!titleEditingRef.current) return
+    titleEditingRef.current = false
+    setEditTitle(false)
+    const id = lookupIdRef.current
+    const old = session?.text ?? ''
+    const t = titleVal.trim()
+    if (!id || !t || t === old) return
+    let r = await window.api.updateLookupText(id, t)
+    if (!r.ok && r.duplicate) {
+      if (!window.confirm(`已存在文本相同的词条，仍要改为「${t.slice(0, 40)}」吗？`)) return
+      r = await window.api.updateLookupText(id, t, true)
+    }
+    if (!r.ok) {
+      window.alert(r.message ?? '保存失败')
+      return
+    }
+    // 就地更新：标题、首个用户气泡、重点状态（词条可能换成了已有的同文本词条）
+    const fresh = r.entryId != null ? await window.api.entryGet(r.entryId) : null
+    setSession((p) => (p ? { ...p, text: t, entryId: r.entryId ?? p.entryId } : p))
+    setItems((xs) =>
+      xs.map((x) =>
+        x.kind === 'bubble' && x.role === 'user' && x.content === old ? { ...x, content: t } : x
+      )
+    )
+    if (fresh) setStarred(fresh.isStarred)
+  }
+
   const isZh = !!session && !manualMode && isZhText(session.text)
   const badge = manualMode
     ? '手动'
@@ -377,9 +420,27 @@ export default function App(): React.JSX.Element {
             >
               {badge}
             </span>
-            <span className="truncate text-[13px] font-medium text-zinc-200" title={title}>
-              {title || '查词'}
-            </span>
+            {editTitle ? (
+              <input
+                autoFocus
+                value={titleVal}
+                onChange={(e) => setTitleVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) void saveEditTitle()
+                  else if (e.key === 'Escape') cancelEditTitle()
+                }}
+                onBlur={() => void saveEditTitle()}
+                className="app-no-drag min-w-0 flex-1 rounded-md border border-teal-500 bg-zinc-800/80 px-2 py-0.5 text-[13px] font-medium text-zinc-100 outline-none"
+              />
+            ) : (
+              <span
+                onClick={startEditTitle}
+                title="点击修正查询文本（抓取缺漏字母时用）；改完可点 🔄 重新生成"
+                className="app-no-drag min-w-0 flex-1 cursor-text truncate text-[13px] font-medium text-zinc-200 transition hover:text-teal-300"
+              >
+                {title || '查词'}
+              </span>
+            )}
           </div>
         </div>
         <div className="app-no-drag flex items-center gap-0.5">

@@ -86,6 +86,12 @@ export interface Api {
   // ---- AI 查询 ----
   aiStart(lookupId: string, force?: boolean): Promise<void>
   nestedLookup(text: string, context?: string): Promise<NestedLookupResult>
+  /** 弹窗标题修正查询文本。duplicate=true 表示存在同文本词条且未保存（重试时传 force） */
+  updateLookupText(
+    lookupId: string,
+    text: string,
+    force?: boolean
+  ): Promise<{ ok: boolean; duplicate?: boolean; entryId: number | null; message?: string }>
   aiFollowup(lookupId: string, question: string): Promise<void>
   aiAbort(lookupId: string): Promise<void>
   starCurrent(lookupId: string): Promise<{ starred: boolean; entryId: number | null }>

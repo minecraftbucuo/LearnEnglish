@@ -45,7 +45,8 @@ import {
   lookupTextFromRenderer,
   relookupEntry,
   runAi,
-  starCurrent
+  starCurrent,
+  updateLookupText
 } from './lookup'
 
 export function registerIpc(): void {
@@ -57,6 +58,9 @@ export function registerIpc(): void {
   ipcMain.handle(CH.AI_ABORT, (_e, lookupId: string) => abortAi(lookupId))
   ipcMain.handle(CH.AI_NESTED_LOOKUP, (_e, text: string, context?: string) =>
     createNestedLookup(text, context)
+  )
+  ipcMain.handle(CH.AI_LOOKUP_UPDATE_TEXT, (_e, lookupId: string, text: string, force?: boolean) =>
+    updateLookupText(lookupId, text, force)
   )
   ipcMain.handle(CH.STAR_CURRENT, (_e, lookupId: string) => starCurrent(lookupId))
 
