@@ -330,6 +330,21 @@ export default function App(): React.JSX.Element {
     await window.api.aiFollowup(lookupId, q)
   }
 
+  /** 嵌套卡重新生成：丢弃当前内容强制重问（句中释义卡会带上原句上下文，缓存命中的旧讲解也会被刷新） */
+  async function regenerateNested(lookupId: string): Promise<void> {
+    const found = items.find((x) => x.kind === 'nested' && x.card.lookupId === lookupId)
+    const card = found?.kind === 'nested' ? found.card : undefined
+    if (!card || card.streaming || card.noProvider) return
+    setItems((xs) =>
+      xs.map((x) =>
+        x.kind === 'nested' && x.card.lookupId === lookupId
+          ? { ...x, card: { ...x.card, streaming: true, error: null, fromCache: false, bubbles: [] } }
+          : x
+      )
+    )
+    await window.api.aiStart(lookupId, true)
+  }
+
   const manualMode = manual && !!session
   const lastItem = items[items.length - 1]
   const lastBubbleIdx = lastBubbleIndex(items)
@@ -508,6 +523,14 @@ export default function App(): React.JSX.Element {
                   {it.card.starred ? '⭐' : '☆'}
                 </button>
                 <button
+                  title="重新生成讲解（句中卡会结合原句上下文）"
+                  onClick={() => void regenerateNested(it.card.lookupId)}
+                  disabled={it.card.streaming}
+                  className="rounded px-1 py-0.5 text-[11px] text-zinc-500 transition hover:bg-zinc-800 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  🔄
+                </button>
+                <button
                   title="收起（Esc 也可）"
                   onClick={() => {
                     void window.api.aiAbort(it.card.lookupId)
@@ -550,7 +573,9 @@ export default function App(): React.JSX.Element {
                         )}
                     </div>
                     {it.card.fromCache && !it.card.streaming && (
-                      <div className="mt-1 text-right text-[10px] text-zinc-600">⚡ 缓存</div>
+                      <div className="mt-1 text-right text-[10px] text-zinc-600">
+                        ⚡ 缓存（点上方 🔄 按原句重新生成）
+                      </div>
                     )}
                     {it.card.error && (
                       <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1.5 text-[11px] leading-5 text-red-300">
