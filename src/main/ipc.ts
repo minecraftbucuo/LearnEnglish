@@ -22,6 +22,7 @@ import {
   markIntroduced,
   setSuspended,
   setStarred,
+  undoAnswer,
   updateEntryText
 } from './db'
 import { getActiveProvider, getSettings, setSettings } from './settings'
@@ -168,6 +169,7 @@ export function registerIpc(): void {
     }
   )
   ipcMain.handle(CH.REVIEW_INTRODUCED, (_e, entryId: number) => markIntroduced(entryId))
+  ipcMain.handle(CH.REVIEW_UNDO, (_e, entryId: number) => undoAnswer(entryId))
   ipcMain.handle(CH.REVIEW_STATS, () => getReviewStats())
 
   // ---- 设置 ----

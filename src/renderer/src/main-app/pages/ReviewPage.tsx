@@ -22,6 +22,16 @@ type Phase = 'idle' | 'session' | 'done'
  */
 type SessionCard = ReviewCard & { need?: number; answered?: boolean; relearn?: boolean }
 
+/** 一次已作答的记录（供"上一步"回滚队列与计数；排期撤销走主进程撤销栈） */
+interface AnswerRecord {
+  cardIndex: number // 作答时该卡在 queue 中的位置
+  entryId: number
+  rating: Rating
+  dbWrite: boolean // 是否写了排期（第一次真实作答且非巩固轮）
+  reappended: boolean // 是否回了一次队尾
+  cardSnapshot: SessionCard // 作答前的卡片状态（need/answered/relearn 原样）
+}
+
 export function ReviewPage({
   active,
   onOpenWords
@@ -37,8 +47,12 @@ export function ReviewPage({
   const [queue, setQueue] = useState<SessionCard[]>([])
   const [idx, setIdx] = useState(0)
   const [result, setResult] = useState({ answered: 0, revealed: 0 })
-  // 本局点过「模糊/忘记」的卡（按词条去重，用来报「没记住几张」）
-  const [slippedIds, setSlippedIds] = useState<Set<number>>(new Set())
+  // 本局点过「模糊/忘记」的卡（数组带重复，按次记录，用于报「没记住几张」与上一步回滚）
+  const [slippedIds, setSlippedIds] = useState<number[]>([])
+  // 已作答历史（后进先出，「上一步」逐条回滚）
+  const [history, setHistory] = useState<AnswerRecord[]>([])
+  // 被回滚的最近一次作答：「保持上次选择」用它原样重放；重新评分（含重放本身）即失效
+  const [redo, setRedo] = useState<{ cardIndex: number; rating: Rating } | null>(null)
   const [loading, setLoading] = useState(true)
   const [queueInfo, setQueueInfo] = useState<ReviewQueue | null>(null)
   const [stats, setStats] = useState<ReviewStats | null>(null)
@@ -71,7 +85,9 @@ export function ReviewPage({
     setQueue(cards)
     setIdx(0)
     setResult({ answered: 0, revealed: 0 })
-    setSlippedIds(new Set())
+    setSlippedIds([])
+    setHistory([])
+    setRedo(null)
   }
 
   /** 学新词：今日额度内的新卡，第一次作答写入排期 */
@@ -119,6 +135,7 @@ export function ReviewPage({
     // 防重入：连点/键盘鼠标齐按只算一次；已退出本轮（如拼写过卡的定时器晚到）不再计分
     if (!card || answeringRef.current || phaseRef.current !== 'session') return
     answeringRef.current = true
+    setRedo(null) // 任何一次新作答（含重放）都让"保持上次选择"失效
     try {
       // 计划只认第一次真实作答（那时记忆水平是真实的）；复习轮一律不写排期
       if (!card.answered && !practice) {
@@ -129,11 +146,22 @@ export function ReviewPage({
       // 还需认识次数：初始 1；认识 -1（到 0 出局）；模糊设 1；忘记设 2（上限，防无限循环）
       const need = card.need ?? 1
       const nextNeed = rating === 3 ? need - 1 : rating === 2 ? 1 : 2
+      const reappend = nextNeed > 0
       setResult((r) => ({ ...r, answered: r.answered + 1 }))
       if (rating !== 3) {
-        setSlippedIds((ids) => new Set(ids).add(card.entry.id))
+        setSlippedIds((ids) => [...ids, card.entry.id])
       }
-      const reappend = nextNeed > 0
+      setHistory((hs) => [
+        ...hs,
+        {
+          cardIndex: idx,
+          entryId: card.entry.id,
+          rating,
+          dbWrite: !card.answered && !practice,
+          reappended: reappend,
+          cardSnapshot: { ...card }
+        }
+      ])
       if (reappend) {
         setQueue((qs) => [
           ...qs,
@@ -157,6 +185,46 @@ export function ReviewPage({
     }
   }
 
+  /** 上一步：回滚最近一次作答——撤销排期写库、移除回队尾的副本、恢复计数与卡片状态。
+   *  点完左键后重新评分就是"前进"，所以没有前进键（跳过不评分会让新词漏写排期） */
+  function handleBack(): void {
+    // 作答写库进行中不回滚（否则可能先撤销后写入，顺序错乱）
+    if (!history.length || answeringRef.current) return
+    const h = history[history.length - 1]
+    if (h.dbWrite) void window.api.reviewUndo(h.entryId)
+    setHistory((hs) => hs.slice(0, -1))
+    // 挂起这次被撤销的作答：→（保持上次选择）可原样重放
+    setRedo({ cardIndex: h.cardIndex, rating: h.rating })
+    if (h.reappended) {
+      // 移除由这次作答回队尾的那份副本（从队尾往前找同词条；LIFO 回滚保证它一定还在）
+      setQueue((qs) => {
+        const qs2 = [...qs]
+        for (let i = qs2.length - 1; i > h.cardIndex; i--) {
+          if (qs2[i].entry.id === h.entryId) {
+            qs2.splice(i, 1)
+            break
+          }
+        }
+        qs2[h.cardIndex] = { ...h.cardSnapshot }
+        return qs2
+      })
+    } else {
+      setQueue((qs) => qs.map((c, i) => (i === h.cardIndex ? { ...h.cardSnapshot } : c)))
+    }
+    setSlippedIds((ids) => {
+      const i = ids.lastIndexOf(h.entryId)
+      return i < 0 ? ids : [...ids.slice(0, i), ...ids.slice(i + 1)]
+    })
+    setResult((r) => ({ ...r, answered: Math.max(0, r.answered - 1) }))
+    setIdx(h.cardIndex)
+  }
+
+  /** 保持上次选择：把刚回滚的那次作答原样重放（评分/排期/队列都与原作答一致） */
+  function handleForward(): void {
+    if (!redo || redo.cardIndex !== idx || answeringRef.current) return
+    void handleAnswer(redo.rating, mode)
+  }
+
   function handleReveal(): void {
     setResult((r) => ({ ...r, revealed: r.revealed + 1 }))
   }
@@ -171,17 +239,44 @@ export function ReviewPage({
       <div className="flex h-full flex-col items-center justify-center gap-8 px-6">
         {finished && (
           <div className="text-center">
-            <div className="text-4xl">{slippedIds.size === 0 ? '🎉' : '💪'}</div>
+            <div className="text-4xl">{new Set(slippedIds).size === 0 ? '🎉' : '💪'}</div>
             <div className="mt-3 text-lg font-semibold text-zinc-100">本轮完成</div>
             <div className="mt-1 text-sm text-zinc-500">
-              复习了 {result.answered} 张{slippedIds.size > 0 && <>，没记住 {slippedIds.size} 张</>}
+              复习了 {result.answered} 张
+              {new Set(slippedIds).size > 0 && <>，没记住 {new Set(slippedIds).size} 张</>}
               {mode === 'spelling' && result.revealed > 0 && <>，看了 {result.revealed} 次答案</>}
             </div>
+            {history.length > 0 && (
+              <button
+                onClick={() => {
+                  handleBack()
+                  setDoneCount(null)
+                  setPhase('session')
+                }}
+                title="回到上一张重新评分（撤销刚才的评分与排期）"
+                className="mt-4 rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
+              >
+                ⏪ 点错了？重评上一张
+              </button>
+            )}
           </div>
         )}
         {doneCount !== null && (
           <div className="rounded-lg bg-violet-500/10 px-4 py-2 text-xs text-violet-300">
             刚复习完 {doneCount} 张
+            {history.length > 0 && (
+              <button
+                onClick={() => {
+                  handleBack()
+                  setDoneCount(null)
+                  setPhase('session')
+                }}
+                title="回到上一张重新评分"
+                className="ml-2 rounded border border-zinc-600 px-1.5 py-0.5 text-[11px] text-zinc-400 transition hover:border-zinc-400 hover:text-zinc-100"
+              >
+                ⏪ 重评上一张
+              </button>
+            )}
           </div>
         )}
         <div className="flex gap-4">
@@ -261,6 +356,10 @@ export function ReviewPage({
       index={idx}
       mode={mode}
       practice={practice}
+      canBack={history.length > 0}
+      onBack={handleBack}
+      canForward={!!redo && redo.cardIndex === idx}
+      onForward={handleForward}
       onAnswer={handleAnswer}
       onReveal={handleReveal}
       onExit={() => {
@@ -297,6 +396,10 @@ function ReviewSession({
   index,
   mode,
   practice,
+  canBack,
+  onBack,
+  canForward,
+  onForward,
   onAnswer,
   onReveal,
   onExit
@@ -305,6 +408,10 @@ function ReviewSession({
   index: number
   mode: ReviewMode
   practice: boolean
+  canBack: boolean
+  onBack: () => void
+  canForward: boolean
+  onForward: () => void
   onAnswer: (rating: Rating, mode: ReviewMode) => Promise<void>
   onReveal: () => void
   onExit: () => void
@@ -346,6 +453,22 @@ function ReviewSession({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      // ← 回到上一张重新评分；→ 保持上一次的选择进入下一张
+      //（拼写输入框内由输入框拦截按键，不会到这里）
+      if (e.key === 'ArrowLeft') {
+        if (canBack) {
+          e.preventDefault()
+          onBack()
+        }
+        return
+      }
+      if (e.key === 'ArrowRight') {
+        if (canForward) {
+          e.preventDefault()
+          onForward()
+        }
+        return
+      }
       // 空格翻面仅识记类卡片（拼写模式的空格是输入内容）
       if (e.key === ' ' && recallLike) {
         e.preventDefault()
@@ -376,7 +499,7 @@ function ReviewSession({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [recallLike, mode, flipped, spellingStatus, onAnswer])
+  }, [recallLike, mode, flipped, spellingStatus, canBack, onBack, canForward, onForward, onAnswer])
 
   /** 忽略大小写、连续空白与末尾标点后比较 */
   function normalize(text: string): string {
@@ -415,9 +538,9 @@ function ReviewSession({
   const showInput = spelling && (spellingStatus === 'typing' || spellingStatus === 'wrong')
 
   return (
-    <div className="mx-auto flex h-full max-w-2xl flex-col px-6 py-5">
+    <div className="flex h-full flex-col px-6 py-5">
       {/* 顶部进度 */}
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mx-auto mb-4 flex w-full max-w-2xl items-center gap-3">
         <button
           onClick={onExit}
           className="shrink-0 rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-100"
@@ -445,13 +568,23 @@ function ReviewSession({
         )}
       </div>
 
-      {/* 卡片 */}
-      <div
-        className="flex min-h-0 flex-1 cursor-pointer flex-col rounded-2xl border border-zinc-800 bg-zinc-900 shadow-lg shadow-black/30"
-        onClick={() => {
-          if (recallLike) setFlipped((f) => !f)
-        }}
-      >
+      {/* 卡片行：←/→ 占卡片两侧空隙，垂直居中 */}
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 gap-3">
+        <button
+          onClick={onBack}
+          disabled={!canBack}
+          title="回到上一张重新评分（撤销刚才的评分与排期；键盘 ← 同）"
+          className="w-12 shrink-0 self-center rounded-xl border border-zinc-800 py-4 text-lg text-zinc-500 transition enabled:hover:border-zinc-600 enabled:hover:bg-zinc-900 enabled:hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-25"
+        >
+          ⏪
+        </button>
+        {/* 卡片 */}
+        <div
+          className="flex min-h-0 flex-1 cursor-pointer flex-col rounded-2xl border border-zinc-800 bg-zinc-900 shadow-lg shadow-black/30"
+          onClick={() => {
+            if (recallLike) setFlipped((f) => !f)
+          }}
+        >
         <div className="flex flex-col items-center px-6 pb-4 pt-8">
           {spelling && !showBack ? (
             <>
@@ -623,6 +756,15 @@ function ReviewSession({
             )}
           </div>
         )}
+        </div>
+        <button
+          onClick={onForward}
+          disabled={!canForward}
+          title="保持上一次的选择，进入下一张（键盘 → 同）"
+          className="w-12 shrink-0 self-center rounded-xl border border-zinc-800 py-4 text-lg text-zinc-500 transition enabled:hover:border-zinc-600 enabled:hover:bg-zinc-900 enabled:hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-25"
+        >
+          ⏩
+        </button>
       </div>
 
       {/* 自评区：识记类三档；拼写不会拼后不追问，直接「下一个」（记不认识回队尾） */}

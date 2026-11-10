@@ -125,6 +125,8 @@ export interface Api {
   reviewQueue(): Promise<ReviewQueue>
   practiceQueue(): Promise<ReviewCard[]>
   reviewAnswer(entryId: number, rating: Rating, mode: ReviewMode): Promise<ReviewState | null>
+  /** 撤销该词条最近一次复习作答（复习会话回到上一张重评），无可撤销记录时返回 false */
+  reviewUndo(entryId: number): Promise<boolean>
   reviewIntroduced(entryId: number): Promise<void>
   reviewStats(): Promise<ReviewStats>
 

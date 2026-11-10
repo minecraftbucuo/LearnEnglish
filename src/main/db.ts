@@ -418,6 +418,23 @@ export function markIntroduced(entryId: number): void {
   ).run(nowIso(), entryId)
 }
 
+// 复习作答撤销栈：answer() 前快照该词条的排期与日志行 id，undoAnswer 按后进先出原样回滚。
+// 仅应用运行期间有效（会话状态本就在渲染层内存里，重启后一起失效）
+interface AnswerSnapshot {
+  entryId: number
+  before: {
+    ease: number
+    intervalDays: number
+    dueAt: string
+    reps: number
+    lapses: number
+    lastReviewedAt: string | null
+  }
+  logId: number
+}
+const answerUndoStack: AnswerSnapshot[] = []
+const ANSWER_UNDO_LIMIT = 200
+
 export function answer(entryId: number, rating: Rating, mode: ReviewMode): ReviewState | null {
   const entry = getEntryById(entryId)
   if (!entry) return null
@@ -426,6 +443,14 @@ export function answer(entryId: number, rating: Rating, mode: ReviewMode): Revie
     'INSERT INTO review_state (entry_id, due_at) VALUES (?, ?) ON CONFLICT(entry_id) DO NOTHING'
   ).run(entryId, nowIso())
   const row = db.prepare('SELECT * FROM review_state WHERE entry_id = ?').get(entryId) as ReviewRow
+  const before = {
+    ease: row.ease,
+    intervalDays: row.interval_days,
+    dueAt: row.due_at,
+    reps: row.reps,
+    lapses: row.lapses,
+    lastReviewedAt: row.last_reviewed_at
+  }
   const prev = {
     ease: row.ease,
     intervalDays: row.interval_days,
@@ -438,13 +463,39 @@ export function answer(entryId: number, rating: Rating, mode: ReviewMode): Revie
     `UPDATE review_state SET ease = ?, interval_days = ?, due_at = ?, reps = ?, lapses = ?,
      last_reviewed_at = ? WHERE entry_id = ?`
   ).run(next.ease, next.intervalDays, dueAt, next.reps, next.lapses, nowIso(), entryId)
-  db.prepare(
-    `INSERT INTO review_logs (entry_id, rating, mode, interval_before, interval_after, ease_after, reviewed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(entryId, rating, mode, prev.intervalDays, next.intervalDays, next.ease, nowIso())
+  const logInfo = db
+    .prepare(
+      `INSERT INTO review_logs (entry_id, rating, mode, interval_before, interval_after, ease_after, reviewed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(entryId, rating, mode, prev.intervalDays, next.intervalDays, next.ease, nowIso())
+  answerUndoStack.push({ entryId, before, logId: Number(logInfo.lastInsertRowid) })
+  if (answerUndoStack.length > ANSWER_UNDO_LIMIT) answerUndoStack.shift()
   return rowToReview(
     db.prepare('SELECT * FROM review_state WHERE entry_id = ?').get(entryId) as ReviewRow
   )
+}
+
+/** 撤销该词条最近一次作答：恢复排期快照并删除对应日志（复习会话"回到上一张"用）。
+ *  栈里没有该词条的快照（如重启后）返回 false */
+export function undoAnswer(entryId: number): boolean {
+  const idx = answerUndoStack.findLastIndex((s) => s.entryId === entryId)
+  if (idx < 0) return false
+  const snap = answerUndoStack.splice(idx, 1)[0]
+  db.prepare(
+    `UPDATE review_state SET ease = ?, interval_days = ?, due_at = ?, reps = ?, lapses = ?,
+     last_reviewed_at = ? WHERE entry_id = ?`
+  ).run(
+    snap.before.ease,
+    snap.before.intervalDays,
+    snap.before.dueAt,
+    snap.before.reps,
+    snap.before.lapses,
+    snap.before.lastReviewedAt,
+    entryId
+  )
+  db.prepare('DELETE FROM review_logs WHERE id = ?').run(snap.logId)
+  return true
 }
 
 export function getReviewQueue(dailyNew: number): {

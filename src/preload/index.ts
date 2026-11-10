@@ -52,6 +52,7 @@ const api: Api = {
   reviewQueue: () => ipcRenderer.invoke(CH.REVIEW_QUEUE),
   practiceQueue: () => ipcRenderer.invoke(CH.REVIEW_PRACTICE_QUEUE),
   reviewAnswer: (entryId, rating, mode) => ipcRenderer.invoke(CH.REVIEW_ANSWER, entryId, rating, mode),
+  reviewUndo: (entryId) => ipcRenderer.invoke(CH.REVIEW_UNDO, entryId),
   reviewIntroduced: (entryId) => ipcRenderer.invoke(CH.REVIEW_INTRODUCED, entryId),
   reviewStats: () => ipcRenderer.invoke(CH.REVIEW_STATS),
 

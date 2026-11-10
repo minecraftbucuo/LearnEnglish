@@ -40,6 +40,7 @@ export const CH = {
   REVIEW_QUEUE: 'review:queue',
   REVIEW_PRACTICE_QUEUE: 'review:practiceQueue',
   REVIEW_ANSWER: 'review:answer',
+  REVIEW_UNDO: 'review:undo', // 撤销该词条最近一次复习作答（回到上一张重评）
   REVIEW_INTRODUCED: 'review:introduced',
   REVIEW_STATS: 'review:stats',
   SETTINGS_GET: 'settings:get',
