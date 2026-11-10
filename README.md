@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/banner.svg" alt="LearnEnglish" width="100%" />
 
-  [![version](https://img.shields.io/badge/version-0.1.7-14b8a6?style=flat-square&labelColor=09090b)](https://github.com/minecraftbucuo/LearnEnglish/releases/latest)
+  [![version](https://img.shields.io/badge/version-0.1.8-14b8a6?style=flat-square&labelColor=09090b)](https://github.com/minecraftbucuo/LearnEnglish/releases/latest)
   [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-38bdf8?style=flat-square&labelColor=09090b&logo=windows&logoColor=38bdf8)](#-下载安装)
   [![Linux](https://img.shields.io/badge/Linux-x64-fcc624?style=flat-square&labelColor=09090b&logo=linux&logoColor=black)](#-下载安装)
   [![Electron](https://img.shields.io/badge/Electron-37-8b5cf6?style=flat-square&labelColor=09090b&logo=electron&logoColor=a78bfa)](https://www.electronjs.org/)
