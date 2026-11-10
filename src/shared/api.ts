@@ -101,6 +101,8 @@ export interface Api {
   entryGet(id: number): Promise<Entry | null>
   entryToggleStar(id: number): Promise<Entry | null>
   entryToggleSuspend(id: number): Promise<Entry | null>
+  /** 标记/取消熟记：熟记的词条退出所有复习队列 */
+  entrySetMastered(id: number, mastered: boolean): Promise<Entry | null>
   entryDelete(id: number): Promise<void>
   /** 修正词条文本。duplicate=true 表示存在同文本的其他词条且未保存（重试时传 force） */
   entryUpdateText(

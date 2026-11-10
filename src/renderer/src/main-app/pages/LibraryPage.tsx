@@ -46,6 +46,7 @@ export function LibraryPage({
   const [query, setQuery] = useState('')
   const [type, setType] = useState<TypeFilter>('all')
   const [starredOnly, setStarredOnly] = useState(false)
+  const [masteredOnly, setMasteredOnly] = useState(false)
   const [status, setStatus] = useState<ReviewWordStatus | null>(initialStatus ?? null)
   // 时间筛选：预设区间或指定某一天（本地日期 YYYY-MM-DD）
   const [datePreset, setDatePreset] = useState<'today' | '7d' | '30d' | 'day' | null>(null)
@@ -88,13 +89,14 @@ export function LibraryPage({
       query: query.trim() || undefined,
       type,
       starredOnly,
+      masteredOnly: masteredOnly || undefined,
       reviewStatus: status ?? undefined,
       createdFrom: dateRange.from,
       createdTo: dateRange.to,
       limit: 300
     }
     setEntries(await window.api.entriesList(filter))
-  }, [query, type, starredOnly, status, dateRange])
+  }, [query, type, starredOnly, masteredOnly, status, dateRange])
 
   useEffect(() => {
     void load()
@@ -144,6 +146,13 @@ export function LibraryPage({
             <span className="mx-1 h-4 w-px bg-zinc-800" />
             <button className={chip(starredOnly)} onClick={() => setStarredOnly((v) => !v)}>
               ⭐ 重点
+            </button>
+            <button
+              className={chip(masteredOnly)}
+              onClick={() => setMasteredOnly((v) => !v)}
+              title="只看已标记熟记的词条"
+            >
+              ✅ 熟记
             </button>
             <span className="mx-1 h-4 w-px bg-zinc-800" />
             {(
@@ -221,6 +230,11 @@ export function LibraryPage({
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm text-zinc-200">{e.text}</span>
                 {e.isStarred && <span className="shrink-0 text-xs">⭐</span>}
+                {e.mastered && (
+                  <span className="shrink-0 rounded bg-zinc-600/40 px-1 py-0.5 text-[10px] text-zinc-300">
+                    熟记
+                  </span>
+                )}
                 {e.suspended && <span className="shrink-0 text-[10px] text-zinc-600">暂停</span>}
                 <span className="shrink-0 text-[11px] text-zinc-600">×{e.lookupCount}</span>
               </button>
@@ -336,6 +350,10 @@ function EntryDetail({
     await window.api.entryToggleSuspend(entry.id)
     await onChanged()
   }
+  async function toggleMastered(): Promise<void> {
+    await window.api.entrySetMastered(entry.id, !entry.mastered)
+    await onChanged()
+  }
   async function remove(): Promise<void> {
     if (!window.confirm(`确定删除「${entry.text.slice(0, 30)}」吗？复习进度也会一并删除。`)) return
     await window.api.entryDelete(entry.id)
@@ -419,6 +437,13 @@ function EntryDetail({
           {relookup && !relookup.error ? '⏳ 查询中…' : '🔄 重新查询'}
         </MiniAction>
         <div className="flex-1" />
+        <MiniAction
+          onClick={() => void toggleMastered()}
+          active={entry.mastered}
+          title="熟记后不再进入任何复习队列（可再次点击取消）"
+        >
+          {entry.mastered ? '✅ 已熟记' : '✅ 熟记'}
+        </MiniAction>
         <MiniAction onClick={() => void toggleSuspend()} title="暂停后不进入复习队列">
           {entry.suspended ? '▶️ 恢复复习' : '⏸ 暂停'}
         </MiniAction>

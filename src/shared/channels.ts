@@ -25,6 +25,7 @@ export const CH = {
   ENTRY_TOGGLE_SUSPEND: 'entry:toggleSuspend',
   ENTRY_DELETE: 'entry:delete',
   ENTRY_UPDATE_TEXT: 'entry:updateText', // 修正词条文本（抓取缺漏字母时手动改正）
+  ENTRY_SET_MASTERED: 'entry:setMastered', // 标记/取消熟记（熟记的词条退出所有复习队列）
   ENTRY_CHAT_ASK: 'entry:chatAsk',
   ENTRY_CHAT_CHUNK: 'entry:chatChunk',
   ENTRY_CHAT_DONE: 'entry:chatDone',

@@ -20,6 +20,7 @@ import {
   listEntries,
   listEntryChats,
   markIntroduced,
+  setMastered,
   setSuspended,
   setStarred,
   undoAnswer,
@@ -95,6 +96,11 @@ export function registerIpc(): void {
     if (!entry) return { ok: false as const, message: '词条不存在' }
     broadcast(CH.ENTRIES_CHANGED)
     return { ok: true as const, entry }
+  })
+  ipcMain.handle(CH.ENTRY_SET_MASTERED, (_e, id: number, mastered: boolean) => {
+    const entry = setMastered(id, !!mastered)
+    if (entry) broadcast(CH.ENTRIES_CHANGED)
+    return entry
   })
 
   // ---- 追问（流式，边生成边推送） ----

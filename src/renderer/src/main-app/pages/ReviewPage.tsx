@@ -29,6 +29,7 @@ interface AnswerRecord {
   rating: Rating
   dbWrite: boolean // 是否写了排期（第一次真实作答且非巩固轮）
   reappended: boolean // 是否回了一次队尾
+  mastered?: boolean // 熟记出列：回滚时取消熟记
   cardSnapshot: SessionCard // 作答前的卡片状态（need/answered/relearn 原样）
 }
 
@@ -52,7 +53,11 @@ export function ReviewPage({
   // 已作答历史（后进先出，「上一步」逐条回滚）
   const [history, setHistory] = useState<AnswerRecord[]>([])
   // 被回滚的最近一次作答：「保持上次选择」用它原样重放；重新评分（含重放本身）即失效
-  const [redo, setRedo] = useState<{ cardIndex: number; rating: Rating } | null>(null)
+  const [redo, setRedo] = useState<{
+    cardIndex: number
+    rating: Rating
+    mastered?: boolean
+  } | null>(null)
   const [loading, setLoading] = useState(true)
   const [queueInfo, setQueueInfo] = useState<ReviewQueue | null>(null)
   const [stats, setStats] = useState<ReviewStats | null>(null)
@@ -130,13 +135,43 @@ export function ReviewPage({
     setPhase('session')
   }
 
-  async function handleAnswer(rating: Rating, answerMode: ReviewMode): Promise<void> {
+  async function handleAnswer(rating: Rating, answerMode: ReviewMode, mastered = false): Promise<void> {
     const card = queue[idx]
     // 防重入：连点/键盘鼠标齐按只算一次；已退出本轮（如拼写过卡的定时器晚到）不再计分
     if (!card || answeringRef.current || phaseRef.current !== 'session') return
     answeringRef.current = true
     setRedo(null) // 任何一次新作答（含重放）都让"保持上次选择"失效
     try {
+      // 熟记：标记后退出所有复习队列，本卡出列不回队尾、不写排期
+      if (mastered) {
+        await window.api.entrySetMastered(card.entry.id, true)
+        if (phaseRef.current !== 'session') return
+        setResult((r) => ({ ...r, answered: r.answered + 1 }))
+        setHistory((hs) => [
+          ...hs,
+          {
+            cardIndex: idx,
+            entryId: card.entry.id,
+            rating,
+            dbWrite: false,
+            reappended: false,
+            mastered: true,
+            cardSnapshot: { ...card }
+          }
+        ])
+        if (idx + 1 >= queue.length) {
+          if (practice) {
+            setDoneCount(result.answered + 1)
+            setPhase('idle')
+          } else {
+            setPhase('done')
+          }
+          await load()
+        } else {
+          setIdx((i) => i + 1)
+        }
+        return
+      }
       // 计划只认第一次真实作答（那时记忆水平是真实的）；复习轮一律不写排期
       if (!card.answered && !practice) {
         await window.api.reviewAnswer(card.entry.id, rating, answerMode)
@@ -191,10 +226,11 @@ export function ReviewPage({
     // 作答写库进行中不回滚（否则可能先撤销后写入，顺序错乱）
     if (!history.length || answeringRef.current) return
     const h = history[history.length - 1]
+    if (h.mastered) void window.api.entrySetMastered(h.entryId, false)
     if (h.dbWrite) void window.api.reviewUndo(h.entryId)
     setHistory((hs) => hs.slice(0, -1))
     // 挂起这次被撤销的作答：→（保持上次选择）可原样重放
-    setRedo({ cardIndex: h.cardIndex, rating: h.rating })
+    setRedo({ cardIndex: h.cardIndex, rating: h.rating, mastered: h.mastered })
     if (h.reappended) {
       // 移除由这次作答回队尾的那份副本（从队尾往前找同词条；LIFO 回滚保证它一定还在）
       setQueue((qs) => {
@@ -219,10 +255,10 @@ export function ReviewPage({
     setIdx(h.cardIndex)
   }
 
-  /** 保持上次选择：把刚回滚的那次作答原样重放（评分/排期/队列都与原作答一致） */
+  /** 保持上次选择：把刚回滚的那次作答原样重放（评分/排期/熟记/队列都与原作答一致） */
   function handleForward(): void {
     if (!redo || redo.cardIndex !== idx || answeringRef.current) return
-    void handleAnswer(redo.rating, mode)
+    void handleAnswer(redo.rating, mode, redo.mastered)
   }
 
   function handleReveal(): void {
@@ -412,7 +448,7 @@ function ReviewSession({
   onBack: () => void
   canForward: boolean
   onForward: () => void
-  onAnswer: (rating: Rating, mode: ReviewMode) => Promise<void>
+  onAnswer: (rating: Rating, mode: ReviewMode, mastered?: boolean) => Promise<void>
   onReveal: () => void
   onExit: () => void
 }): React.JSX.Element {
@@ -475,11 +511,12 @@ function ReviewSession({
         setFlipped((f) => !f)
         return
       }
-      // 识记类：翻面后数字键自评（认识/模糊/不认识）
+      // 识记类：翻面后数字键自评（认识/模糊/不认识/熟记）
       if (recallLike) {
-        if (flipped && ['1', '2', '3'].includes(e.key)) {
+        if (flipped && ['1', '2', '3', '4'].includes(e.key)) {
           e.preventDefault()
-          void onAnswer(Number(e.key) as Rating, mode)
+          if (e.key === '4') void onAnswer(3, mode, true)
+          else void onAnswer(Number(e.key) as Rating, mode)
         }
         return
       }
@@ -767,7 +804,7 @@ function ReviewSession({
         </button>
       </div>
 
-      {/* 自评区：识记类三档；拼写不会拼后不追问，直接「下一个」（记不认识回队尾） */}
+      {/* 自评区：识记类三档 + 熟记；拼写不会拼后不追问，直接「下一个」（记不认识回队尾）或熟记 */}
       {grading && recallLike && (
         <div className="mt-4 flex justify-center gap-2.5">
           {SELF_RATINGS.map((r) => (
@@ -780,15 +817,30 @@ function ReviewSession({
               {r.label}
             </button>
           ))}
+          <button
+            onClick={() => void onAnswer(3, mode, true)}
+            title="标记熟记：这个词条以后不再进入任何复习"
+            className="flex items-center gap-2 rounded-xl bg-zinc-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-500"
+          >
+            <span className="rounded bg-white/25 px-1.5 text-xs">4</span>
+            熟记
+          </button>
         </div>
       )}
       {grading && !recallLike && (
-        <div className="mt-4 flex justify-center">
+        <div className="mt-4 flex justify-center gap-2.5">
           <button
             onClick={() => void onAnswer(1, mode)}
             className="flex items-center gap-2 rounded-xl bg-violet-600 px-8 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-violet-500"
           >
             下一个 <span className="rounded bg-white/25 px-1.5 text-xs">回车</span>
+          </button>
+          <button
+            onClick={() => void onAnswer(3, mode, true)}
+            title="标记熟记：这个词条以后不再进入任何复习"
+            className="flex items-center gap-2 rounded-xl bg-zinc-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-zinc-500"
+          >
+            熟记
           </button>
         </div>
       )}

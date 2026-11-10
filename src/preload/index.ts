@@ -31,6 +31,7 @@ const api: Api = {
   entryGet: (id) => ipcRenderer.invoke(CH.ENTRY_GET, id),
   entryToggleStar: (id) => ipcRenderer.invoke(CH.ENTRY_TOGGLE_STAR, id),
   entryToggleSuspend: (id) => ipcRenderer.invoke(CH.ENTRY_TOGGLE_SUSPEND, id),
+  entrySetMastered: (id, mastered) => ipcRenderer.invoke(CH.ENTRY_SET_MASTERED, id, mastered),
   entryDelete: (id) => ipcRenderer.invoke(CH.ENTRY_DELETE, id),
   entryUpdateText: (id, text, force = false) =>
     ipcRenderer.invoke(CH.ENTRY_UPDATE_TEXT, id, text, force),

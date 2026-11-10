@@ -43,6 +43,7 @@ export interface Entry {
   note: string
   isStarred: boolean
   suspended: boolean
+  mastered: boolean // 用户手动标记「熟记」，退出所有复习队列（区别于 stats 按间隔≥21天推算的掌握）
   lookupCount: number
   createdAt: string
   updatedAt: string
@@ -56,6 +57,7 @@ export interface EntriesFilter {
   query?: string
   type?: EntryType | 'all'
   starredOnly?: boolean
+  masteredOnly?: boolean // 只看熟记的词条
   reviewStatus?: ReviewWordStatus
   createdFrom?: string // 本地日期 YYYY-MM-DD（含当天 0 点起）
   createdTo?: string // 本地日期 YYYY-MM-DD（含当天）

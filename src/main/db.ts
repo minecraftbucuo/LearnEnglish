@@ -32,6 +32,7 @@ interface EntryRow {
   note: string
   is_starred: number
   suspended: number
+  mastered: number
   lookup_count: number
   created_at: string
   updated_at: string
@@ -79,6 +80,7 @@ export function initDb(): void {
       note TEXT NOT NULL DEFAULT '',
       is_starred INTEGER NOT NULL DEFAULT 0,
       suspended INTEGER NOT NULL DEFAULT 0,
+      mastered INTEGER NOT NULL DEFAULT 0,
       lookup_count INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -127,6 +129,10 @@ export function initDb(): void {
   )
   if (!cols.includes('markdown')) {
     db.exec('ALTER TABLE entries ADD COLUMN markdown TEXT')
+  }
+  // 老库迁移：补熟记标记列
+  if (!cols.includes('mastered')) {
+    db.exec('ALTER TABLE entries ADD COLUMN mastered INTEGER NOT NULL DEFAULT 0')
   }
   // 老库迁移：截图词条并入普通词条体系（截图=先转文字的普通查询，不再单独存图）
   const imgRows = db
@@ -197,6 +203,7 @@ function rowToEntry(r: EntryRow): Entry {
     note: r.note,
     isStarred: !!r.is_starred,
     suspended: !!r.suspended,
+    mastered: !!r.mastered,
     lookupCount: r.lookup_count,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -340,8 +347,17 @@ function localDayEndIso(day: string): string | null {
 }
 
 export function listEntries(filter: EntriesFilter = {}): Entry[] {
-  const { query, type, starredOnly, reviewStatus, createdFrom, createdTo, limit = 200, offset = 0 } =
-    filter
+  const {
+    query,
+    type,
+    starredOnly,
+    masteredOnly,
+    reviewStatus,
+    createdFrom,
+    createdTo,
+    limit = 200,
+    offset = 0
+  } = filter
   const conds: string[] = []
   const params: unknown[] = []
   let join = ''
@@ -354,6 +370,7 @@ export function listEntries(filter: EntriesFilter = {}): Entry[] {
     params.push(type)
   }
   if (starredOnly) conds.push('is_starred = 1')
+  if (masteredOnly) conds.push('mastered = 1')
   const fromIso = createdFrom ? localDayStartIso(createdFrom) : null
   if (fromIso) {
     conds.push('created_at >= ?')
@@ -395,6 +412,12 @@ export function setStarred(id: number, starred: boolean): Entry | null {
 
 export function setSuspended(id: number, suspended: boolean): Entry | null {
   db.prepare('UPDATE entries SET suspended = ? WHERE id = ?').run(suspended ? 1 : 0, id)
+  return getEntryById(id)
+}
+
+/** 标记/取消熟记：熟记的词条退出所有复习队列与统计范围（不改动 updated_at） */
+export function setMastered(id: number, mastered: boolean): Entry | null {
+  db.prepare('UPDATE entries SET mastered = ? WHERE id = ?').run(mastered ? 1 : 0, id)
   return getEntryById(id)
 }
 
@@ -508,7 +531,7 @@ export function getReviewQueue(dailyNew: number): {
     .prepare(
       `SELECT e.*, r.ease, r.interval_days, r.due_at, r.reps, r.lapses, r.introduced_at, r.last_reviewed_at
        FROM entries e JOIN review_state r ON r.entry_id = e.id
-       WHERE e.is_starred = 1 AND e.suspended = 0
+       WHERE e.is_starred = 1 AND e.suspended = 0 AND e.mastered = 0
        ORDER BY RANDOM()`
     )
     .all() as (EntryRow & ReviewRow)[]
@@ -551,7 +574,7 @@ export function getPracticeQueue(): ReviewCard[] {
     .prepare(
       `SELECT e.*, r.ease, r.interval_days, r.due_at, r.reps, r.lapses, r.introduced_at, r.last_reviewed_at
        FROM entries e JOIN review_state r ON r.entry_id = e.id
-       WHERE e.is_starred = 1 AND e.suspended = 0
+       WHERE e.is_starred = 1 AND e.suspended = 0 AND e.mastered = 0
          AND (r.reps > 0 OR r.lapses > 0 OR r.introduced_at IS NOT NULL)
        ORDER BY RANDOM()`
     )
@@ -568,7 +591,7 @@ export function getReviewStats(): ReviewStats {
     .prepare(
       `SELECT r.ease, r.interval_days, r.due_at, r.reps, r.lapses, r.introduced_at
        FROM review_state r JOIN entries e ON e.id = r.entry_id
-       WHERE e.is_starred = 1 AND e.suspended = 0`
+       WHERE e.is_starred = 1 AND e.suspended = 0 AND e.mastered = 0`
     )
     .all() as ReviewRow[]
 
