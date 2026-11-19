@@ -8,7 +8,7 @@ import { getActiveProvider, getSettings } from './settings'
 import { captureSelectedText } from './capture'
 import { captureRegionByHwnd } from './screenshot'
 import { streamChat, type ChatMessage, type ChatContentPart } from './ai'
-import { buildLookupMessages, extractAiData, FOLLOWUP_GUIDE, isSingleWord, isZhShort } from './prompts'
+import { buildFollowupSystem, buildLookupMessages, extractAiData, isSingleWord, isZhShort } from './prompts'
 import type { LookupKind } from './prompt-kinds'
 import { isZhContent } from '@shared/text'
 import {
@@ -41,6 +41,7 @@ interface LookupSession {
   messages: ChatMessage[]
   controller: AbortController | null
   streaming: boolean
+  cachedMarkdown: string | null // 缓存命中的首答讲解：追问时补进历史，避免模型看不到已有的讲解
   context?: string // 句中释义：嵌套查询所在的原句（有值时提示词要求结合上下文讲解）
 }
 
@@ -255,7 +256,8 @@ function createSession(p: {
     isStarred: existing?.isStarred ?? false,
     messages: [],
     controller: null,
-    streaming: false
+    streaming: false,
+    cachedMarkdown: existing?.markdown ?? null
   }
   sessions.set(session.id, session)
   // 会话数量上限，防泄漏
@@ -320,28 +322,37 @@ export async function runAi(lookupId: string, force = false): Promise<void> {
   }
   const settings = getSettings()
   const kind = session.kind
+  const hasAnswer = session.messages.some((m) => m.role === 'assistant')
 
-  if (force || session.messages.length === 0 || session.messages[0]?.role !== 'system') {
-    // 缓存态嵌套卡首问：会话里只有用户问题、无系统提示词 → 重建首答上下文并补回问题
-    const last = session.messages[session.messages.length - 1]
-    const pending = !force && last?.role === 'user' ? last : undefined
-    session.kind = kind
+  if (force) {
+    // 重新生成：丢弃历史，回到首答的卡片模式
     session.messages = buildLookupMessages(kind, session.text, settings.promptCards)
     // 句中释义：追加原句上下文说明（位于用户问题之前，仅首答构建时注入一次）
-    if (session.context) session.messages.push({ role: 'system', content: contextGuide(session.text, session.context) })
-    if (pending) session.messages.push(pending)
-  }
-  if (
-    !force &&
-    session.messages.some((m) => m.role === 'assistant') &&
-    !session.messages.some((m) => m.role === 'system' && m.content === FOLLOWUP_GUIDE)
-  ) {
-    // 追问轮次：在最新用户问题前插入自由交流指引，解除首答的卡片结构与 AI_DATA 约束
-    // （判定依据是已有 assistant 回答，而不是消息条数——句中释义会多带一条 context 系统消息）
-    session.messages.splice(session.messages.length - 1, 0, {
-      role: 'system',
-      content: FOLLOWUP_GUIDE
-    })
+    if (session.context)
+      session.messages.push({ role: 'system', content: contextGuide(session.text, session.context) })
+  } else if (hasAnswer) {
+    // 追问：换成对话模式的系统提示，只保留对话历史。
+    // 首答那套卡片提示词里有「无论用户发来什么都当作要讲解的词条」+ AI_DATA + 强制小节结构，
+    // 留在上下文里会被模型当成「再查一次词」，答出来就和上文无关（看起来像没关联）。
+    const history = session.messages.filter((m) => m.role !== 'system')
+    session.messages = [
+      {
+        role: 'system',
+        content: buildFollowupSystem(kind, session.text, settings.promptCards, session.context)
+      },
+      ...history
+    ]
+  } else {
+    // 首答，或缓存命中后的第一次追问：补齐首答上下文。
+    // 缓存态会话里没有首答消息，要把缓存讲解作为 assistant 历史带上，模型才有东西可「接」。
+    const pending = session.messages[0]?.role === 'system'
+      ? []
+      : session.messages.filter((m) => m.role === 'user')
+    const first = buildLookupMessages(kind, session.text, settings.promptCards)
+    if (session.context)
+      first.push({ role: 'system', content: contextGuide(session.text, session.context) })
+    if (session.cachedMarkdown) first.push({ role: 'assistant', content: session.cachedMarkdown })
+    session.messages = [...first, ...pending]
   }
 
   const model = provider.chatModel
@@ -393,9 +404,9 @@ function finishStream(
   regenerate = false
 ): void {
   const { markdown, data } = extractAiData(full)
-  let structured: StructuredData | null = sanitizeStructured(data)
-  // 追问轮次一般没有 AI_DATA；保留旧的结构化数据
-  if (!data && session.messages.length > 2) structured = null
+  // 只有首答才接受结构化数据：追问的回答不能覆盖词条已有的卡片数据
+  // （追问模式下系统提示已明确要求不输出 AI_DATA，这里再兜一层）
+  const structured: StructuredData | null = isInitial ? sanitizeStructured(data) : null
 
   const preExisting = session.entryId ? getEntryById(session.entryId) : null
   // 句中释义的正文是针对特定句子的解释，不作为词条的通用讲解缓存（下次双击同词应为新一轮句中释义）

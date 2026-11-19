@@ -27,7 +27,7 @@ import {
   updateEntryText
 } from './db'
 import { getActiveProvider, getSettings, setSettings } from './settings'
-import { streamChat, testProvider } from './ai'
+import { streamChat, testProvider, type ChatMessage } from './ai'
 import { getStorageInfo } from './storage'
 
 // 进行中的追问流（chatId → 状态），用于推送增量与取消
@@ -113,7 +113,19 @@ export function registerIpc(): void {
       if (!entry) throw new Error('词条不存在')
       const provider = getActiveProvider()
       if (!provider) throw new Error('尚未配置 AI 供应商，请打开设置页配置。')
-      const context = entry.structured ? JSON.stringify(entry.structured).slice(0, 900) : '（无）'
+      // 讲解正文优先（用户看到的就是它），没有正文时退回结构化要点
+      const context = entry.markdown
+        ? entry.markdown.slice(0, 1200)
+        : entry.structured
+          ? JSON.stringify(entry.structured).slice(0, 900)
+          : '（无）'
+      // 带上此前的追问问答（最近 3 轮），否则同一窗口里每次提问都是孤立的一问一答
+      const history = listEntryChats(entryId)
+        .slice(-6)
+        .flatMap((c): ChatMessage[] => [
+          { role: 'user', content: c.question },
+          { role: 'assistant', content: c.answer }
+        ])
       const controller = new AbortController()
       chatStreams.set(chatId, { entryId, question: q, controller, sender: e.sender })
       let full = ''
@@ -125,9 +137,12 @@ export function registerIpc(): void {
             {
               role: 'system',
               content:
-                `你是一位耐心的英语老师。用户正在学习词条「${entry.text}」，已有的讲解要点：${context}。` +
+                `你是一位耐心的英语老师，正在和学生聊词条「${entry.text}」。已有的完整讲解如下：\n${context}\n` +
+                '上下文里还有你们之前的追问问答，回答时要接着上文说：沿用已讲过的释义、词根、例句或结论，' +
+                '学生问到相关词、近义词时主动和这个词对照，不要无视上文重新从头讲一遍。' +
                 '请针对用户的追问给出简短、准确的中文回答（不超过 150 字），直接回答，绝不反问。'
             },
+            ...history,
             { role: 'user', content: q }
           ],
           signal: controller.signal

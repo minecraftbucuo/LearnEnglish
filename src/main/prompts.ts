@@ -85,9 +85,40 @@ export function buildLookupMessages(
   return [sys, { role: 'user', content: wrapped }]
 }
 
-/** 追问轮次插入的自由交流指引：解除首答的卡片结构与 AI_DATA 约束 */
-export const FOLLOWUP_GUIDE =
-  '从现在起进入自由交流模式：用户会继续追问、讨论或闲聊。请像耐心的语言学习伙伴一样自然对话——直接回答问题本身，简明扼要；可以适度使用列表或加粗，但不要再套「## 小节」的卡片结构，也不要输出 AI_DATA JSON 注释。仅当用户明确要求完整讲解时才恢复卡片格式。'
+/** 追问（对话）模式的系统提示。
+ *  追问轮次不能沿用首答那套卡片提示词：它带着「无论用户发来什么都当作要讲解的词条」和
+ *  AI_DATA／强制小节结构，模型会无视上文、把追问重新当成一次查词。这里换一套轻量提示，
+ *  历史里的首答讲解与问答照常随 messages 传给模型，口径是「接上文说话」而不是「再讲一遍词条」。 */
+export function buildFollowupSystem(
+  kind: LookupKind,
+  text: string,
+  cardSet?: PromptCardSet,
+  context?: string
+): string {
+  const key = KIND_TO_KEY[kind]
+  const cards = cardSet?.[key] ?? DEFAULT_PROMPT_CARDS[key]
+  const role = cards.find((c) => c.locked && c.content.trim())?.content.trim()
+  const target =
+    kind === 'word'
+      ? `英语单词或短语「${text}」`
+      : kind === 'sentence'
+        ? `英语句子「${text}」`
+        : kind === 'zh_word'
+          ? `中文词语「${text}」及其英语表达`
+          : `中文句子「${text}」及其英语翻译`
+
+  const lines = [
+    role || '你是一位耐心、专业的英语老师，面向中国学生。',
+    `你正在和这位学生围绕${target}连续对话：上下文里已经有你的首轮讲解和之后的每一轮问答。注意，这一轮不是新的查词，不要重新输出词条讲解。`,
+    '回答要求：',
+    '1. 先接上文再作答：引用、沿用已讲过的释义、词根、例句或结论来回答；学生问到相关词、近义词、反义词时，主动把它和上文的目标词放在一起对照（词源、词义、用法、感情色彩上的异同），不要装作没看见上文、从头另开一张词卡。',
+    '2. 直接回答学生的问题本身，简明扼要（通常不超过 250 字）；需要举例时给 1-2 个简短例句。',
+    '3. 不要套「## 音标 / ## 释义 / ## 例句」这类卡片小节结构，也不要在回答末尾附加隐藏的 JSON 数据注释。',
+    '4. 只有学生明确要求「完整讲一遍／给我一张完整卡片」时，才恢复首答的完整卡片格式。'
+  ]
+  if (context) lines.push(`学生正在读的原句是：「${context}」，回答时还要贴合这句话的语境。`)
+  return lines.join('\n')
+}
 
 /** 从 AI 回复中剥离并解析 AI_DATA JSON 注释 */
 export function extractAiData(
