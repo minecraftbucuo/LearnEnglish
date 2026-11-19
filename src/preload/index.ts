@@ -70,6 +70,9 @@ const api: Api = {
   lookupText: (text) => ipcRenderer.invoke(CH.APP_LOOKUP_TEXT, text),
   openDataDir: () => ipcRenderer.invoke(CH.APP_OPEN_DATA_DIR),
   openExternal: (url) => ipcRenderer.invoke(CH.APP_OPEN_EXTERNAL, url),
+
+  confirm: (opts) => ipcRenderer.invoke(CH.UI_CONFIRM, opts),
+  alert: (message, detail) => ipcRenderer.invoke(CH.UI_ALERT, message, detail),
 }
 
 contextBridge.exposeInMainWorld('api', api)

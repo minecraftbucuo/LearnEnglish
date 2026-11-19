@@ -59,3 +59,4 @@ pnpm dist        # 打包：Windows 出 NSIS，Linux 出 AppImage（输出 dist/
    - push master + push tag；tag 触发 CI（.github/workflows/release.yml）双平台打包并创建 **GitHub Draft Release**（electron-builder 默认 releaseType: draft），由用户手动 Publish——这是有意设计，别改成自动发布
 5. **文档同步**：README 有「详细使用说明」一节，改用户可感知的行为（快捷键/交互/缓存语义）要同步更新；顶部快捷键表也要加
 6. **主进程能做的不进渲染层**：结构化清洗、类型判定、落库时机都在 main；preload 只透传
+7. **渲染层禁止 `window.confirm/alert/prompt`**：Electron 的原生模态弹完后，同窗口的输入框会失去聚焦（表现：搜索框打不了字、只能重开窗口才恢复）。一律用 `window.api.confirm/alert`（主进程 `dialog.showMessageBox`，挂在发起请求的窗口上）

@@ -14,6 +14,17 @@ let popupWindow: BrowserWindow | null = null
 let overlayWindow: BrowserWindow | null = null
 let quitting = false
 let overlayReady: (() => void) | null = null
+// 系统对话框（dialog.showMessageBox）打开期间为 >0：模态对话框会抢走窗口激活，
+// 若不抑制，弹窗里的「确认改名」会把弹窗按失焦规则直接藏掉
+let modalDepth = 0
+
+export function beginModalDialog(): void {
+  modalDepth += 1
+}
+
+export function endModalDialog(): void {
+  modalDepth = Math.max(0, modalDepth - 1)
+}
 
 export function setQuitting(v: boolean): void {
   quitting = v
@@ -119,7 +130,7 @@ export function createPopupWindow(): BrowserWindow {
     }, 500)
   })
   popupWindow.on('blur', () => {
-    if (getSettings().hideOnBlur) hidePopup()
+    if (getSettings().hideOnBlur && !modalDepth) hidePopup()
   })
   void popupWindow.loadURL(rendererUrl('popup.html'))
   return popupWindow

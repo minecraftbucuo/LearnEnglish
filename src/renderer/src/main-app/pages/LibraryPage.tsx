@@ -355,7 +355,12 @@ function EntryDetail({
     await onChanged()
   }
   async function remove(): Promise<void> {
-    if (!window.confirm(`确定删除「${entry.text.slice(0, 30)}」吗？复习进度也会一并删除。`)) return
+    const ok = await window.api.confirm({
+      message: `确定删除「${entry.text.slice(0, 30)}」吗？`,
+      detail: '该词条的讲解、追问记录与复习进度会一并删除，无法恢复。',
+      okLabel: '删除'
+    })
+    if (!ok) return
     await window.api.entryDelete(entry.id)
     onClose()
     await onChanged()
@@ -407,11 +412,16 @@ function EntryDetail({
     if (!t || t === entry.text) return
     let r = await window.api.entryUpdateText(entry.id, t)
     if (!r.ok && r.duplicate) {
-      if (!window.confirm(`已存在文本相同的词条，仍要保存为「${t.slice(0, 40)}」吗？`)) return
+      const ok = await window.api.confirm({
+        message: `已存在文本相同的词条，仍要保存为「${t.slice(0, 40)}」吗？`,
+        detail: '保存后两条词条文本相同，后续划词会命中已有那条。',
+        okLabel: '仍然保存'
+      })
+      if (!ok) return
       r = await window.api.entryUpdateText(entry.id, t, true)
     }
     if (!r.ok) {
-      window.alert(r.message ?? '保存失败')
+      await window.api.alert(r.message ?? '保存失败')
       return
     }
     await onChanged()

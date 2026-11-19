@@ -375,11 +375,16 @@ export default function App(): React.JSX.Element {
     if (!id || !t || t === old) return
     let r = await window.api.updateLookupText(id, t)
     if (!r.ok && r.duplicate) {
-      if (!window.confirm(`已存在文本相同的词条，仍要改为「${t.slice(0, 40)}」吗？`)) return
+      const ok = await window.api.confirm({
+        message: `已存在文本相同的词条，仍要改为「${t.slice(0, 40)}」吗？`,
+        detail: '改完会挂在已有那条词条上，追问与复习进度也一并归到它。',
+        okLabel: '仍然修改'
+      })
+      if (!ok) return
       r = await window.api.updateLookupText(id, t, true)
     }
     if (!r.ok) {
-      window.alert(r.message ?? '保存失败')
+      await window.api.alert(r.message ?? '保存失败')
       return
     }
     // 就地更新：标题、首个用户气泡、重点状态（词条可能换成了已有的同文本词条）

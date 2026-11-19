@@ -1,4 +1,4 @@
-import { ipcMain, app, shell } from 'electron'
+import { ipcMain, app, shell, BrowserWindow, dialog, type MessageBoxOptions } from 'electron'
 import { CH } from '@shared/channels'
 import type {
   AppSettings,
@@ -36,7 +36,7 @@ const chatStreams = new Map<
   { entryId: number; question: string; controller: AbortController; sender: Electron.WebContents }
 >()
 import { registerShortcuts } from './shortcuts'
-import { broadcast, hidePopup, showMainWindow } from './windows'
+import { beginModalDialog, broadcast, endModalDialog, hidePopup, showMainWindow } from './windows'
 import {
   abortAi,
   abortRelookup,
@@ -223,6 +223,62 @@ export function registerIpc(): void {
   ipcMain.handle(CH.APP_OPEN_EXTERNAL, (_e, url: string) => {
     if (typeof url === 'string' && url.startsWith('https://github.com/')) {
       return void shell.openExternal(url)
+    }
+  })
+
+  // ---- 系统对话框 ----
+  // 渲染层用 window.confirm/alert 时，Electron 的原生模态弹完后同窗口输入框会失去聚焦
+  // （表现为搜索框等打不了字，只能重开窗口），所以统一走主进程 dialog，并挂到发起请求的窗口上。
+  ipcMain.handle(
+    CH.UI_CONFIRM,
+    async (
+      e,
+      opts: { message?: string; detail?: string; okLabel?: string; cancelLabel?: string } = {}
+    ) => {
+      const parent = BrowserWindow.fromWebContents(e.sender)
+      const wasVisible = !!parent && !parent.isDestroyed() && parent.isVisible()
+      const options: MessageBoxOptions = {
+        type: 'warning',
+        noLink: true,
+        buttons: [opts.cancelLabel?.trim() || '取消', opts.okLabel?.trim() || '确定'],
+        defaultId: 0, // 危险操作默认停在「取消」，回车不会误删
+        cancelId: 0,
+        message: opts.message?.trim() || '确定继续吗？',
+        detail: opts.detail ?? ''
+      }
+      let response = 0
+      beginModalDialog()
+      try {
+        const r = parent
+          ? await dialog.showMessageBox(parent, options)
+          : await dialog.showMessageBox(options)
+        response = r.response
+      } finally {
+        endModalDialog()
+        // 模态期间可能被系统/窗口规则藏起来：关闭后还原到打开前的可见状态
+        if (wasVisible && parent && !parent.isDestroyed() && !parent.isVisible()) parent.show()
+      }
+      return response === 1
+    }
+  )
+  ipcMain.handle(CH.UI_ALERT, async (e, message: string, detail?: string) => {
+    const parent = BrowserWindow.fromWebContents(e.sender)
+    const wasVisible = !!parent && !parent.isDestroyed() && parent.isVisible()
+    const options: MessageBoxOptions = {
+      type: 'warning',
+      noLink: true,
+      buttons: ['知道了'],
+      defaultId: 0,
+      message: String(message || '出错了'),
+      detail: detail ?? ''
+    }
+    beginModalDialog()
+    try {
+      if (parent) await dialog.showMessageBox(parent, options)
+      else await dialog.showMessageBox(options)
+    } finally {
+      endModalDialog()
+      if (wasVisible && parent && !parent.isDestroyed() && !parent.isVisible()) parent.show()
     }
   })
 }

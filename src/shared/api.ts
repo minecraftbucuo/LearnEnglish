@@ -142,6 +142,17 @@ export interface Api {
   screenshotConfirm(rect: SelectionRect): Promise<void>
   screenshotCancel(): Promise<void>
 
+  // ---- 系统对话框 ----
+  /** 二次确认（替代 window.confirm：渲染层原生模态会让输入框失去聚焦） */
+  confirm(opts: {
+    message: string
+    detail?: string
+    okLabel?: string
+    cancelLabel?: string
+  }): Promise<boolean>
+  /** 提示框（替代 window.alert） */
+  alert(message: string, detail?: string): Promise<void>
+
   // ---- 窗口 ----
   openMain(tab?: string): Promise<void>
   hidePopup(): Promise<void>

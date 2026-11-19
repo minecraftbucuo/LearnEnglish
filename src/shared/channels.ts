@@ -55,4 +55,8 @@ export const CH = {
   APP_OPEN_DATA_DIR: 'app:openDataDir',
   APP_OPEN_EXTERNAL: 'app:openExternal',
   APP_LOOKUP_TEXT: 'app:lookupText',
+  // 系统对话框：渲染层不要用 window.confirm/alert——Electron 里原生模态弹完会让同窗口输入框
+  // 失去聚焦（点进去也打不了字），只能重开窗口恢复；统一走主进程 dialog
+  UI_CONFIRM: 'ui:confirm',
+  UI_ALERT: 'ui:alert'
 } as const
